@@ -1,0 +1,475 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llamit.ai/schemas/resolve-dependabot-prs/inventory-v1.schema.json",
+  "title": "resolve-dependabot-prs inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "complete",
+    "generatedAt",
+    "repository",
+    "pullRequests",
+    "overlaps",
+    "groups",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "generatedAt": {
+      "$ref": "#/$defs/rfc3339Utc"
+    },
+    "repository": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/repository"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pullRequests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pullRequest"
+      },
+      "uniqueItems": true
+    },
+    "overlaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/overlap"
+      },
+      "uniqueItems": true
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/group"
+      },
+      "uniqueItems": true
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inventoryError"
+      },
+      "uniqueItems": true
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "complete": {
+          "const": false
+        },
+        "repository": {
+          "type": "null"
+        },
+        "pullRequests": {
+          "maxItems": 0
+        },
+        "overlaps": {
+          "maxItems": 0
+        },
+        "groups": {
+          "maxItems": 0
+        },
+        "errors": {
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "repository": {
+          "$ref": "#/$defs/repository"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha40": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rfc3339Utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z$"
+    },
+    "nameWithOwner": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//)(?:[^/]+)(?:/[^/]+)*$"
+    },
+    "impact": {
+      "enum": [
+        "patch",
+        "minor",
+        "major",
+        "non-semver",
+        "unknown"
+      ]
+    },
+    "ecosystem": {
+      "enum": [
+        "npm",
+        "uv",
+        "docker",
+        "github-actions",
+        "unknown"
+      ]
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "nameWithOwner",
+        "remote",
+        "root",
+        "defaultBranch",
+        "defaultBranchSha",
+        "actorLogin"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$"
+        },
+        "nameWithOwner": {
+          "$ref": "#/$defs/nameWithOwner"
+        },
+        "remote": {
+          "const": "origin"
+        },
+        "root": {
+          "type": "string",
+          "pattern": "^/(?:[^/]+)(?:/[^/]+)*$"
+        },
+        "defaultBranch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultBranchSha": {
+          "$ref": "#/$defs/sha40"
+        },
+        "actorLogin": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "login",
+        "type",
+        "sourceLogin"
+      ],
+      "properties": {
+        "login": {
+          "const": "dependabot[bot]"
+        },
+        "type": {
+          "const": "Bot"
+        },
+        "sourceLogin": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "gitRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo",
+        "ref",
+        "sha"
+      ],
+      "properties": {
+        "repo": {
+          "$ref": "#/$defs/nameWithOwner"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha": {
+          "$ref": "#/$defs/sha40"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "ecosystem",
+        "fromVersion",
+        "toVersion",
+        "rawUpdateType",
+        "dependencyType",
+        "impact",
+        "prerelease"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ecosystem": {
+          "$ref": "#/$defs/ecosystem"
+        },
+        "fromVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rawUpdateType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dependencyType": {
+          "enum": [
+            "direct",
+            "indirect",
+            "unknown"
+          ]
+        },
+        "impact": {
+          "$ref": "#/$defs/impact"
+        },
+        "prerelease": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "url",
+        "title",
+        "body",
+        "author",
+        "base",
+        "head",
+        "maintainerCanModify",
+        "files",
+        "manifests",
+        "lockfiles",
+        "dependencies",
+        "observedAggregateImpact",
+        "securityUpdate"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/author"
+        },
+        "base": {
+          "$ref": "#/$defs/gitRef"
+        },
+        "head": {
+          "$ref": "#/$defs/gitRef"
+        },
+        "maintainerCanModify": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        },
+        "manifests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        },
+        "lockfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          },
+          "uniqueItems": true
+        },
+        "observedAggregateImpact": {
+          "$ref": "#/$defs/impact"
+        },
+        "securityUpdate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "overlap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "key",
+        "prNumbers"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "manifest",
+            "lockfile",
+            "dependency"
+          ]
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prNumbers": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "groupKey",
+        "base",
+        "prNumbers",
+        "manifestPaths",
+        "observedAggregateImpact"
+      ],
+      "properties": {
+        "groupKey": {
+          "$ref": "#/$defs/sha256"
+        },
+        "base": {
+          "$ref": "#/$defs/gitRef"
+        },
+        "prNumbers": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "manifestPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "observedAggregateImpact": {
+          "$ref": "#/$defs/impact"
+        }
+      }
+    },
+    "inventoryError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "prNumber",
+        "transient"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "ENV",
+            "AUTH",
+            "API",
+            "RATE_LIMIT",
+            "PARSE",
+            "REPO_MISMATCH",
+            "CONTRACT"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prNumber": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transient": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

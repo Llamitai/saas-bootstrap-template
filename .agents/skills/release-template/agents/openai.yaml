@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Template"
+  short_description: "Safely tag and publish the Copier template"
+  default_prompt: "Use $release-template to inspect changes, propose the next template version, and publish it after my approval."

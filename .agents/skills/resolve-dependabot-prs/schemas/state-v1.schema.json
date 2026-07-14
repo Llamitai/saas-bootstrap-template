@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llamit.ai/schemas/resolve-dependabot-prs/state-v1.schema.json",
+  "title": "resolve-dependabot-prs runtime state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planDigest",
+    "repository",
+    "base",
+    "status",
+    "replacement",
+    "mergeCommitSha",
+    "operations",
+    "sources",
+    "blocked",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "planDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
+    "base": {
+      "$ref": "#/$defs/base"
+    },
+    "status": {
+      "enum": [
+        "planned",
+        "published",
+        "waiting-checks",
+        "queued",
+        "merged",
+        "sources-closed",
+        "closed",
+        "blocked"
+      ]
+    },
+    "replacement": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/replacement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mergeCommitSha": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha40"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operation"
+      },
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      },
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true
+    },
+    "blocked": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/blocked"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "updatedAt": {
+      "$ref": "#/$defs/rfc3339Utc"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "blocked"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blocked": {
+            "$ref": "#/$defs/blocked"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "blocked": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "planned",
+              "published",
+              "waiting-checks",
+              "queued"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mergeCommitSha": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "merged"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mergeCommitSha": {
+            "$ref": "#/$defs/sha40"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "sources-closed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "replacement": {
+            "$ref": "#/$defs/replacement"
+          },
+          "mergeCommitSha": {
+            "$ref": "#/$defs/sha40"
+          },
+          "sources": {
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/source"
+                },
+                {
+                  "properties": {
+                    "status": {
+                      "const": "closed"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "closed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "replacement": {
+            "type": "null"
+          },
+          "mergeCommitSha": {
+            "type": "null"
+          },
+          "sources": {
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/source"
+                },
+                {
+                  "properties": {
+                    "status": {
+                      "const": "closed"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha40": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rfc3339Utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z$"
+    },
+    "nameWithOwner": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "sourceTarget": {
+      "type": "string",
+      "pattern": "^source:[1-9][0-9]*@[0-9a-f]{40}$"
+    },
+    "branchTarget": {
+      "type": "string",
+      "pattern": "^branch:automation/dependabot/(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,30}[a-z0-9])-[0-9a-f]{12}$"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "nameWithOwner"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$"
+        },
+        "nameWithOwner": {
+          "$ref": "#/$defs/nameWithOwner"
+        }
+      }
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "sha"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha": {
+          "$ref": "#/$defs/sha40"
+        }
+      }
+    },
+    "replacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "url",
+        "headSha"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "headSha": {
+          "$ref": "#/$defs/sha40"
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target",
+        "status",
+        "attempts",
+        "lastObserved"
+      ],
+      "properties": {
+        "name": {
+          "enum": [
+            "push",
+            "create-replacement",
+            "merge",
+            "close-source"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "confirmed",
+            "blocked"
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastObserved": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "name": {
+              "const": "push"
+            },
+            "target": {
+              "$ref": "#/$defs/branchTarget"
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {
+              "const": "create-replacement"
+            },
+            "target": {
+              "const": "replacement"
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {
+              "const": "merge"
+            },
+            "target": {
+              "oneOf": [
+                {
+                  "const": "replacement"
+                },
+                {
+                  "$ref": "#/$defs/sourceTarget"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {
+              "const": "close-source"
+            },
+            "target": {
+              "$ref": "#/$defs/sourceTarget"
+            }
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "headSha",
+        "status"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "headSha": {
+          "$ref": "#/$defs/sha40"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "merged",
+            "closed"
+          ]
+        }
+      }
+    },
+    "blocked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "action"
+      ],
+      "properties": {
+        "reason": {
+          "enum": [
+            "transient",
+            "protection",
+            "unsafe-scope",
+            "stale-snapshot",
+            "ambiguous-remote",
+            "timeout"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

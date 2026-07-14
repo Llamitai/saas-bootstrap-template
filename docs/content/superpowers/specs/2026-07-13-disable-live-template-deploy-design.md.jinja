@@ -1,0 +1,60 @@
+# Diseño para desactivar despliegues en el repositorio vivo de la plantilla
+
+## Objetivo
+
+Impedir que `Llamitai/wise`, repositorio vivo de [[ project_name ]], despliegue la
+aplicación en Portainer. Los workflows deben seguir construyendo y publicando
+las imágenes Docker. Los proyectos generados desde la plantilla deben conservar
+el comportamiento actual de despliegue.
+
+## Alcance
+
+El cambio afecta únicamente los workflows de GitHub Actions que llaman a
+Portainer:
+
+- `.github/workflows/build_backend.yml`;
+- `.github/workflows/build_frontend.yml`;
+- `.github/workflows/rollback.yml`.
+
+No cambia Docker, los nombres de las imágenes, GitLab CI, la publicación del
+mirror Copier ni los workflows de calidad. Tampoco introduce variables o
+secretos nuevos.
+
+## Diseño
+
+Los pasos `Deploy to Portainer` de backend y frontend tendrán esta guarda:
+
+```yaml
+if: ${{ github.repository != 'Llamitai/wise' }}
+```
+
+La construcción, autenticación en GHCR y publicación de imágenes permanecen
+sin cambios. En `rollback.yml`, la misma comparación se combina con la
+selección existente de servicio en el `if` de cada job. De esta forma, un
+rollback iniciado manualmente en `Llamitai/wise` queda omitido antes de ejecutar
+login, verificación de imagen o cualquier llamada a Portainer.
+
+La condición se evalúa durante cada ejecución del workflow. En
+`Llamitai/wise` es falsa; en un proyecto derivado, cuyo `github.repository`
+tiene otro owner o nombre, es verdadera. Los archivos viajan literalmente en el
+template Copier, por lo que no se necesita lógica especial en el generador.
+
+## Flujo y errores
+
+En el repositorio vivo, GitHub Actions mostrará los pasos de deploy y los jobs
+de rollback como `skipped`, no como fallidos. Un fallo de build o publicación
+continúa fallando el workflow normalmente. En proyectos derivados, el deploy
+mantiene sus condiciones y manejo de errores actuales.
+
+La guarda está versionada y es cerrada por identidad: no depende de una
+variable mutable que, al faltar, pudiera reactivar accidentalmente el deploy en
+`Llamitai/wise`.
+
+## Verificación
+
+1. Validar los tres workflows con `actionlint`.
+2. Ejecutar `just template check` para confirmar que el cambio sigue viajando
+   correctamente a proyectos generados.
+3. Comprobar por inspección que build y push no tengan nuevas condiciones.
+4. Confirmar que las condiciones sean falsas únicamente para
+   `Llamitai/wise` y verdaderas para un nombre de repositorio derivado.

@@ -194,12 +194,12 @@ class CurrencyCode(BaseEnum):
         }
 
     @classmethod
-    def get_symbol(cls, currency_code: "CurrencyCode") -> str:
+    def get_symbol(cls, currency_code: CurrencyCode) -> str:
         symbols = cls.get_symbols_map()
         if currency_code in symbols:
             return symbols[currency_code]
         return "$"
 
     @classmethod
-    def enabled_currencies(cls) -> list["CurrencyCode"]:
+    def enabled_currencies(cls) -> list[CurrencyCode]:
         return [cls.USD, cls.BOB, cls.BRL]

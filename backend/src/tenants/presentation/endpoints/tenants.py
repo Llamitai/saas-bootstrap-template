@@ -62,7 +62,7 @@ class UpdateTenantRequest(CamelCaseRequest):
         name: str | None = Form(default=None, min_length=1, max_length=150),
         country_code: CountryIsoCode | None = Form(default=None),
         currency_code: CurrencyCode | None = Form(default=None),
-    ) -> "UpdateTenantRequest":
+    ) -> UpdateTenantRequest:
         return cls(
             name=name,
             country_code=country_code,

@@ -40,13 +40,12 @@ app = FastAPI(
 )
 app.include_router(api_router)
 
-# ty can't match middleware classes against starlette's ParamSpec-based `_MiddlewareFactory` protocol
-app.add_middleware(SecurityHeadersMiddleware)  # ty: ignore[invalid-argument-type]
-app.add_middleware(CamelCaseToSnakeCaseMiddleware)  # ty: ignore[invalid-argument-type]
-app.add_middleware(RequestTrackingMiddleware)  # ty: ignore[invalid-argument-type]
-app.add_middleware(RateLimitHeadersMiddleware)  # ty: ignore[invalid-argument-type]
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CamelCaseToSnakeCaseMiddleware)
+app.add_middleware(RequestTrackingMiddleware)
+app.add_middleware(RateLimitHeadersMiddleware)
 app.add_middleware(
-    CORSMiddleware,  # ty: ignore[invalid-argument-type]
+    CORSMiddleware,
     allow_origins=settings.all_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

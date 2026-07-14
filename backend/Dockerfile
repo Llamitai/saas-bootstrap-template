@@ -1,10 +1,17 @@
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS production_builder
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS production_builder
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/venv
 
 WORKDIR /app
+
+# Python 3.14 lacks prebuilt wheels for some deps (cffi, asyncpg, ...), so uv
+# compiles them from source and needs a C toolchain plus libffi/libpq headers.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential python3-dev libffi-dev libpq-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -18,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 #  P R O D U C T I O N
 #
-FROM python:3.13-slim-bookworm AS production
+FROM python:3.14-slim-bookworm AS production
 
 # Infisical CLI version. Pin matched to the self-hosted server's API surface:
 # 0.43.99 targets /api/v4/secrets. Override at build time once the server is bumped.
@@ -53,17 +60,18 @@ CMD ["/start"]
 #
 #  D E V E L O P M E N T
 #
-FROM python:3.13-slim-bookworm AS development
+FROM python:3.14-slim-bookworm AS development
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        poppler-utils build-essential python3-dev libffi-dev libpq-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
-    UV_PYTHON=python3.13 \
+    UV_PYTHON=python3.14 \
     UV_PROJECT_ENVIRONMENT=/venv
 
 ENV PATH="/venv/bin:$PATH"

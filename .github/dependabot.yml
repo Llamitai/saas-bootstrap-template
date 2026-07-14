@@ -5,6 +5,13 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     open-pull-requests-limit: 5
 
   # Root workspace tooling
@@ -12,6 +19,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     open-pull-requests-limit: 5
 
   # Frontend (Next.js app)
@@ -19,6 +33,17 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      # Runtime and containers stay on the active Node LTS line.
+      - dependency-name: "@types/node"
+        versions: ["25.x"]
     open-pull-requests-limit: 5
 
   # Docs site
@@ -26,6 +51,17 @@ updates:
     directory: "/docs"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      # Runtime and containers stay on the active Node LTS line.
+      - dependency-name: "@types/node"
+        versions: ["25.x"]
     open-pull-requests-limit: 5
 
   # Docker base images
@@ -33,12 +69,24 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
 
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+    ignore:
+      # Node 25 is an EOL, non-LTS release; Node 24 remains the runtime target.
+      - dependency-name: "node"
+        versions: ["25.x"]
     open-pull-requests-limit: 5
 
   # GitHub Actions workflows
@@ -46,4 +94,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5

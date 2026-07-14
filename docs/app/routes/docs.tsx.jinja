@@ -30,7 +30,7 @@ export function loader({ params }: Route.LoaderArgs) {
   };
 }
 
-export function meta({ data: loaderData }: Route.MetaArgs) {
+export function meta({ loaderData }: Route.MetaArgs) {
   if (!loaderData) {
     return [{ title: "No encontrado | [[ project_name ]] Docs" }];
   }

@@ -42,6 +42,6 @@ class TenantRoleORM(Base, UUIDTenantTimestampMixin):
     )
 
     # -> Relationships
-    tenant: Mapped["TenantORM"] = relationship(
+    tenant: Mapped[TenantORM] = relationship(
         back_populates=None,
     )

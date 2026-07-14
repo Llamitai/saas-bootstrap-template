@@ -29,7 +29,7 @@ class TenantRoleBatchAssigner(UseCase):
         if not tenant_role:
             raise TenantRoleNotFoundError
 
-        tenant_users = await self.tenant_user_repository.filter(filters=TenantUserFilters(tenantIds=[tenant.uuid]))  # ty: ignore[unknown-argument]  (kwarg por alias pydantic)
+        tenant_users = await self.tenant_user_repository.filter(filters=TenantUserFilters(tenantIds=[tenant.uuid]))
         for tenant_user in tenant_users:
             if tenant_user.tenant_role_id:
                 continue

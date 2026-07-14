@@ -1,0 +1,614 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llamit.ai/schemas/resolve-dependabot-prs/plan-v1.schema.json",
+  "title": "resolve-dependabot-prs plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planDigest",
+    "sourceHash",
+    "createdAt",
+    "candidate",
+    "destinationBranch",
+    "operations",
+    "approval"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "planDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/rfc3339Utc"
+    },
+    "candidate": {
+      "$ref": "candidate-v1.schema.json"
+    },
+    "destinationBranch": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/destinationBranch"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operation"
+      },
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true
+    },
+    "approval": {
+      "$ref": "#/$defs/approval"
+    }
+  },
+  "oneOf": [
+    {
+      "title": "autonomous direct update",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "update"
+                },
+                "mode": {
+                  "const": "direct"
+                },
+                "effectiveImpact": {
+                  "enum": [
+                    "patch",
+                    "minor"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "type": "null"
+        },
+        "operations": {
+          "$ref": "#/$defs/directOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/noApproval"
+        }
+      }
+    },
+    {
+      "title": "approved direct major update",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "update"
+                },
+                "mode": {
+                  "const": "direct"
+                },
+                "effectiveImpact": {
+                  "const": "major"
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "type": "null"
+        },
+        "operations": {
+          "$ref": "#/$defs/directOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/updateMajorApproval"
+        }
+      }
+    },
+    {
+      "title": "autonomous replacement update",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "update"
+                },
+                "mode": {
+                  "const": "replacement"
+                },
+                "effectiveImpact": {
+                  "enum": [
+                    "patch",
+                    "minor"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "$ref": "#/$defs/destinationBranch"
+        },
+        "operations": {
+          "$ref": "#/$defs/replacementOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/noApproval"
+        }
+      }
+    },
+    {
+      "title": "approved replacement major update",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "update"
+                },
+                "mode": {
+                  "const": "replacement"
+                },
+                "effectiveImpact": {
+                  "const": "major"
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "$ref": "#/$defs/destinationBranch"
+        },
+        "operations": {
+          "$ref": "#/$defs/replacementOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/updateMajorApproval"
+        }
+      }
+    },
+    {
+      "title": "autonomous nonapplicable close",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "close-nonapplicable"
+                },
+                "closureReason": {
+                  "enum": [
+                    "prerelease",
+                    "duplicate-merged",
+                    "superseded-merged"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "type": "null"
+        },
+        "operations": {
+          "$ref": "#/$defs/closeOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/noApproval"
+        }
+      }
+    },
+    {
+      "title": "reviewed nonapplicable close",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "close-nonapplicable"
+                },
+                "closureReason": {
+                  "enum": [
+                    "withdrawn",
+                    "already-in-base",
+                    "unsupported-platform"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "type": "null"
+        },
+        "operations": {
+          "$ref": "#/$defs/closeOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/closeReviewedApproval"
+        }
+      }
+    },
+    {
+      "title": "declined major close",
+      "properties": {
+        "candidate": {
+          "allOf": [
+            {
+              "$ref": "candidate-v1.schema.json"
+            },
+            {
+              "properties": {
+                "decision": {
+                  "const": "close-declined-major"
+                },
+                "closureReason": {
+                  "const": "major-declined"
+                }
+              }
+            }
+          ]
+        },
+        "destinationBranch": {
+          "type": "null"
+        },
+        "operations": {
+          "$ref": "#/$defs/closeOperations"
+        },
+        "approval": {
+          "$ref": "#/$defs/rejectMajorApproval"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rfc3339Utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z$"
+    },
+    "destinationBranch": {
+      "type": "string",
+      "pattern": "^automation/dependabot/(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,30}[a-z0-9])-[0-9a-f]{12}$"
+    },
+    "sourceTarget": {
+      "type": "string",
+      "pattern": "^source:[1-9][0-9]*@[0-9a-f]{40}$"
+    },
+    "branchTarget": {
+      "type": "string",
+      "pattern": "^branch:automation/dependabot/(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,30}[a-z0-9])-[0-9a-f]{12}$"
+    },
+    "pushOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target"
+      ],
+      "properties": {
+        "name": {
+          "const": "push"
+        },
+        "target": {
+          "$ref": "#/$defs/branchTarget"
+        }
+      }
+    },
+    "createReplacementOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target"
+      ],
+      "properties": {
+        "name": {
+          "const": "create-replacement"
+        },
+        "target": {
+          "const": "replacement"
+        }
+      }
+    },
+    "directMergeOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target"
+      ],
+      "properties": {
+        "name": {
+          "const": "merge"
+        },
+        "target": {
+          "$ref": "#/$defs/sourceTarget"
+        }
+      }
+    },
+    "replacementMergeOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target"
+      ],
+      "properties": {
+        "name": {
+          "const": "merge"
+        },
+        "target": {
+          "const": "replacement"
+        }
+      }
+    },
+    "closeSourceOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "target"
+      ],
+      "properties": {
+        "name": {
+          "const": "close-source"
+        },
+        "target": {
+          "$ref": "#/$defs/sourceTarget"
+        }
+      }
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/pushOperation"
+        },
+        {
+          "$ref": "#/$defs/createReplacementOperation"
+        },
+        {
+          "$ref": "#/$defs/directMergeOperation"
+        },
+        {
+          "$ref": "#/$defs/replacementMergeOperation"
+        },
+        {
+          "$ref": "#/$defs/closeSourceOperation"
+        }
+      ]
+    },
+    "directOperations": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/directMergeOperation"
+        }
+      ],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "replacementOperations": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/pushOperation"
+        },
+        {
+          "$ref": "#/$defs/createReplacementOperation"
+        },
+        {
+          "$ref": "#/$defs/replacementMergeOperation"
+        },
+        {
+          "$ref": "#/$defs/closeSourceOperation"
+        }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "closeOperations": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/closeSourceOperation"
+        }
+      ],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "noApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "required",
+        "approveToken",
+        "rejectToken",
+        "closeToken",
+        "parentPlanDigest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "none"
+        },
+        "required": {
+          "const": false
+        },
+        "approveToken": {
+          "type": "null"
+        },
+        "rejectToken": {
+          "type": "null"
+        },
+        "closeToken": {
+          "type": "null"
+        },
+        "parentPlanDigest": {
+          "type": "null"
+        }
+      }
+    },
+    "updateMajorApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "required",
+        "approveToken",
+        "rejectToken",
+        "closeToken",
+        "parentPlanDigest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "update-major"
+        },
+        "required": {
+          "const": true
+        },
+        "approveToken": {
+          "type": "string",
+          "pattern": "^approve:[0-9a-f]{64}$"
+        },
+        "rejectToken": {
+          "type": "string",
+          "pattern": "^reject:[0-9a-f]{64}$"
+        },
+        "closeToken": {
+          "type": "null"
+        },
+        "parentPlanDigest": {
+          "type": "null"
+        }
+      }
+    },
+    "closeReviewedApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "required",
+        "approveToken",
+        "rejectToken",
+        "closeToken",
+        "parentPlanDigest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "close-reviewed"
+        },
+        "required": {
+          "const": true
+        },
+        "approveToken": {
+          "type": "null"
+        },
+        "rejectToken": {
+          "type": "null"
+        },
+        "closeToken": {
+          "type": "string",
+          "pattern": "^close:[0-9a-f]{64}$"
+        },
+        "parentPlanDigest": {
+          "type": "null"
+        }
+      }
+    },
+    "rejectMajorApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "required",
+        "approveToken",
+        "rejectToken",
+        "closeToken",
+        "parentPlanDigest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reject-major"
+        },
+        "required": {
+          "const": true
+        },
+        "approveToken": {
+          "type": "null"
+        },
+        "rejectToken": {
+          "type": "string",
+          "pattern": "^reject:[0-9a-f]{64}$"
+        },
+        "closeToken": {
+          "type": "null"
+        },
+        "parentPlanDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "approval": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/noApproval"
+        },
+        {
+          "$ref": "#/$defs/updateMajorApproval"
+        },
+        {
+          "$ref": "#/$defs/closeReviewedApproval"
+        },
+        {
+          "$ref": "#/$defs/rejectMajorApproval"
+        }
+      ]
+    }
+  }
+}

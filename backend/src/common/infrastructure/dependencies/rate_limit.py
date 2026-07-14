@@ -79,7 +79,7 @@ def create_rate_limit_dependency(
         rate_limiter = RateLimiter(redis_client=redis_client)
 
         try:
-            allowed, remaining, _ = await rate_limiter.check_rate_limit(
+            _allowed, remaining, _ = await rate_limiter.check_rate_limit(
                 key=key, limit=limit, window=window, strategy=strategy
             )
 

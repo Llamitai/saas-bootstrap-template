@@ -1,4 +1,4 @@
-FROM node:22-slim AS deps
+FROM node:24-slim AS deps
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 
-FROM node:22-slim AS builder
+FROM node:24-slim AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --prod --frozen-lockfile
 
 
-FROM node:22-slim AS production
+FROM node:24-slim AS production
 
 # Infisical CLI version. Pin matched to the self-hosted server's API surface:
 # 0.43.99 targets /api/v4/secrets. Override at build time once the server is bumped.

@@ -95,7 +95,7 @@ class SetupTenantUserCommand(Command):
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, kwargs: dict) -> "SetupTenantUserCommand":
+    def from_dict(cls, kwargs: dict) -> SetupTenantUserCommand:
         return cls(**kwargs)
 
 

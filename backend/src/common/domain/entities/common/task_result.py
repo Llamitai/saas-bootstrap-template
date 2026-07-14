@@ -17,14 +17,14 @@ class TaskResult(BaseModel):
         return data
 
     @classmethod
-    def success(cls, message: str | None = None) -> "TaskResult":
+    def success(cls, message: str | None = None) -> TaskResult:
         return cls(
             status=TaskStatus.SUCCESS,
             message=message,
         )
 
     @classmethod
-    def failure(cls, message: str | None = None) -> "TaskResult":
+    def failure(cls, message: str | None = None) -> TaskResult:
         return cls(
             status=TaskStatus.FAILURE,
             message=message,

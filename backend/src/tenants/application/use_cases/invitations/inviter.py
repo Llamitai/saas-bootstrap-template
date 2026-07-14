@@ -19,6 +19,7 @@ from src.common.domain.buses.commands import CommandBus
 from src.common.domain.enums.tenants import TenantUserInvitationStatus
 from src.common.domain.interfaces.use_case import UseCase
 from src.common.domain.models.tenants.tenant import Tenant
+from src.common.domain.models.tenants.tenant_role import TenantRole
 from src.common.domain.models.tenants.tenant_user_invitation import (
     TenantUserInvitation,
 )
@@ -81,7 +82,7 @@ class TenantMemberInviter(UseCase):
         if not self.members:
             return [], []
 
-        roles_by_slug: dict[str, object] = {}
+        roles_by_slug: dict[str, TenantRole | None] = {}
         now = datetime.now(UTC)
         drafts: list[TenantUserInvitation] = []
         skipped: list[SkippedExistingMember] = []
@@ -109,7 +110,7 @@ class TenantMemberInviter(UseCase):
                     uuid=uuid.uuid4(),
                     tenant_id=self.tenant.uuid,
                     email=email,
-                    tenant_role_id=role.uuid if role else None,  # type: ignore[attr-defined]
+                    tenant_role_id=role.uuid if role else None,
                     token=_new_invitation_token(),
                     status=TenantUserInvitationStatus.PENDING,
                     expires_at=now + INVITATION_TTL,

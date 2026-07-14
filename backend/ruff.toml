@@ -9,7 +9,7 @@
 line-length = 119
 
 # Versión de Python objetivo
-target-version = "py313"
+target-version = "py314"
 
 # Directorios a excluir
 exclude = [
@@ -82,7 +82,6 @@ ignore = [
     "RUF003",
 
     # Modernizaciones opt-in no adoptadas repo-wide (habilitar cuando el equipo migre)
-    "UP038",   # isinstance con tupla: regla deprecada upstream, fix PEP 604 más lento
     "UP042",   # StrEnum: el mixin `(str, Enum)` es intencional (str() estable)
     "UP046",   # PEP 695 generics: el repo usa `Generic[T]` + `TypeVar`
 ]

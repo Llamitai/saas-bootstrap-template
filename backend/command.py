@@ -37,7 +37,8 @@ def load(fixtures_dir: str = "fixtures"):
     async def _inner():
         objs: list[object] = []
 
-        for file in sorted(pathlib.Path(fixtures_dir).glob("*.*")):
+        # This one-shot CLI intentionally reads small fixture files synchronously.
+        for file in sorted(pathlib.Path(fixtures_dir).glob("*.*")):  # noqa: ASYNC240
             for entry in _read_fixture(file):
                 model_name = entry["model"]
                 fields = entry.get("fields", {})
@@ -120,9 +121,9 @@ def dump(
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if fmt.lower() == "yaml":
-            path.write_text(yaml.safe_dump(objects, allow_unicode=True, sort_keys=False))
+            path.write_text(yaml.safe_dump(objects, allow_unicode=True, sort_keys=False))  # noqa: ASYNC240
         else:  # JSON por defecto
-            path.write_text(json.dumps(objects, ensure_ascii=False, indent=2))
+            path.write_text(json.dumps(objects, ensure_ascii=False, indent=2))  # noqa: ASYNC240
 
         typer.echo(f"✅  Exportados {len(objects)} registros a {path}")
 

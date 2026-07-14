@@ -17,7 +17,7 @@ class AsyncSQLAlchemyTestFactory(AsyncSQLAlchemyFactory):
     @classmethod
     async def clean_up(cls):
         # factory_boy expone opciones SQLAlchemy en _meta pero sus stubs no las modelan.
-        session = cls._meta.sqlalchemy_session  # ty: ignore[possibly-missing-attribute]
+        session = cls._meta.sqlalchemy_session  # ty: ignore[unresolved-attribute]
         model_class = cls._meta.model
         created_uuid_instances = cls._created_uuid_instances
 

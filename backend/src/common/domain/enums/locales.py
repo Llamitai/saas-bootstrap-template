@@ -286,7 +286,7 @@ class Days(BaseEnum):
         return [(weekday.value, day_str) for weekday, day_str in cls.weekdays().items()]
 
     @classmethod
-    def get_weekday_label(cls, day: "Days"):
+    def get_weekday_label(cls, day: Days):
         return cls.weekdays().get(day, None)
 
 

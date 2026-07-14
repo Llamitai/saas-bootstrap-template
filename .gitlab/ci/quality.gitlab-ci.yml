@@ -65,7 +65,7 @@ quality:backend:
 # --- Frontend: tsc + biome + vitest + boundaries + build --------------------
 quality:frontend:
   stage: quality
-  image: node:22-slim
+  image: node:24-slim
   rules: *quality-rules
   variables:
     COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"

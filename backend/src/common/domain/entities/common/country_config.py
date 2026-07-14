@@ -18,7 +18,7 @@ class CountryConfig:
     dial_prefix: int | None = None
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CountryConfig":
+    def from_dict(cls, data: dict) -> CountryConfig:
         return cls(
             name=data["name"],
             iso_code=CountryIsoCode(data["iso_code"]),

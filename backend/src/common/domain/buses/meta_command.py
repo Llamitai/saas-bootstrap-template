@@ -17,12 +17,12 @@ class MetaCommand:
         }
 
     @classmethod
-    def from_command(cls, command: Command) -> "MetaCommand":
+    def from_command(cls, command: Command) -> MetaCommand:
         return cls(
             command_name=command.__class__.__name__,
             payload=command.to_dict,
         )
 
     @classmethod
-    def from_dict(cls, kwargs: dict) -> "MetaCommand":
+    def from_dict(cls, kwargs: dict) -> MetaCommand:
         return cls(**kwargs)

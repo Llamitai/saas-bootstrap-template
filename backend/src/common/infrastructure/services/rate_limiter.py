@@ -119,7 +119,7 @@ class RateLimiter:
             # Calculate retry_after based on the oldest request in the window
             oldest_timestamp = await self.redis_client.zrange(rate_limit_key, 0, 0, withscores=True)
             if oldest_timestamp:
-                oldest_time = oldest_timestamp[0][1]
+                oldest_time = float(oldest_timestamp[0][1])
                 retry_after = int(oldest_time + window - now) + 1
             else:
                 retry_after = window

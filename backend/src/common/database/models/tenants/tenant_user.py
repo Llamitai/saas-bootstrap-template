@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
@@ -60,13 +60,13 @@ class TenantUserORM(Base, UUIDTenantTimestampMixin, ProfileMixin):
     )
 
     # -> Relationships
-    user: Mapped["UserORM"] = relationship(
+    user: Mapped[UserORM] = relationship(
         back_populates=None,
     )
-    tenant: Mapped["TenantORM"] = relationship(
+    tenant: Mapped[TenantORM] = relationship(
         back_populates=None,
     )
-    tenant_role: Mapped[Optional["TenantRoleORM"]] = relationship(
+    tenant_role: Mapped[TenantRoleORM | None] = relationship(
         back_populates=None,
     )
 

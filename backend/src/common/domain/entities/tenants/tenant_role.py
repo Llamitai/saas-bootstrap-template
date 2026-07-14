@@ -12,7 +12,7 @@ class TenantRoleMeta(BaseModel):
     icon_url: str | None = None
 
     @classmethod
-    def owner(cls) -> "TenantRoleMeta":
+    def owner(cls) -> TenantRoleMeta:
         return cls(
             name="Owner",
             slug="owner",
@@ -22,7 +22,7 @@ class TenantRoleMeta(BaseModel):
         )
 
     @classmethod
-    def anonymous(cls) -> "TenantRoleMeta":
+    def anonymous(cls) -> TenantRoleMeta:
         return cls(
             name="Anonymous",
             slug="anonymous",

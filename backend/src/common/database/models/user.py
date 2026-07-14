@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
@@ -76,13 +76,13 @@ class UserORM(Base, UUIDTimestampMixin, PersonMixin):
 
     # -> Relationships
 
-    email_address: Mapped[Optional["EmailAddressORM"]] = relationship(
+    email_address: Mapped[EmailAddressORM | None] = relationship(
         back_populates=None,
     )
-    phone_number: Mapped[Optional["PhoneNumberORM"]] = relationship(
+    phone_number: Mapped[PhoneNumberORM | None] = relationship(
         back_populates=None,
     )
-    current_tenant: Mapped[Optional["TenantORM"]] = relationship(
+    current_tenant: Mapped[TenantORM | None] = relationship(
         foreign_keys=[current_tenant_id],
         back_populates=None,
     )

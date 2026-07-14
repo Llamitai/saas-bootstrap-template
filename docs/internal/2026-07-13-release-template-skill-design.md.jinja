@@ -1,0 +1,142 @@
+# Diseño del skill `/release-template`
+
+## Objetivo
+
+Crear un skill portable para Claude Code, Codex y OpenCode que publique una
+nueva versión de la plantilla Copier canónica. El skill debe deducir el nivel
+SemVer a partir de los cambios desde el último tag remoto, proponer la versión
+con una justificación y exigir aprobación explícita antes de crear o empujar el
+tag que dispara `publish-template.yml`.
+
+El skill no publica directamente el repositorio espejo, no empuja `main`, no
+mueve tags existentes y no sustituye las validaciones del workflow de GitHub.
+
+## Distribución
+
+La fuente canónica será `.claude/skills/release-template/` y contendrá:
+
+- `SKILL.md`: instrucciones, criterios de clasificación y puerta de aprobación.
+- `scripts/release_template.py`: inspección y mutaciones Git deterministas.
+- `agents/openai.yaml`: metadatos de descubrimiento para Codex.
+
+Después de validar la fuente canónica, se copiará a `.codex/skills/`,
+`.opencode/skills/` y `.agents/skills/` mediante:
+
+```bash
+just sync-skills --all release-template
+```
+
+Las copias generadas nunca se editarán directamente.
+
+## Interfaz del script
+
+El script expondrá dos fases:
+
+### `inspect`
+
+Será estrictamente de solo lectura. Comprobará el repositorio y devolverá los
+datos estables que el agente necesita para analizar los cambios:
+
+- raíz y remoto canónico `Llamitai/wise`;
+- rama `main` y worktree/index limpios;
+- coincidencia entre `HEAD` y `origin/main`;
+- tags remotos que cumplan `^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`;
+- último tag por orden SemVer numérico, sin depender de `git describe`;
+- existencia de ese tag en `Llamitai/[[ project_slug ]]-template`;
+- SHA y asunto del commit que se pretende publicar.
+
+El script consultará los refs remotos directamente para no depender de tags o
+ramas de seguimiento locales desactualizados.
+
+### `publish`
+
+Recibirá el tag aprobado y el SHA esperado. Antes de mutar Git repetirá todas
+las guardas de `inspect`, comprobará que el nuevo tag no exista localmente, en
+`origin` ni en el espejo, y exigirá que el valor de confirmación coincida
+exactamente con el tag propuesto.
+
+Después creará un tag ligero, consistente con `v0.1.0`, y empujará únicamente
+su ref exacto:
+
+```bash
+git push origin refs/tags/vX.Y.Z
+```
+
+No usará `--tags`, `--force`, borrado de refs ni movimiento de tags.
+
+## Deducción de la versión
+
+El agente analizará los commits y el diff entre el último tag SemVer remoto y
+el SHA de `origin/main`. No confiará sólo en Conventional Commits: los usará
+como señal y verificará el impacto real en la plantilla generada y en las
+actualizaciones con Copier.
+
+Aplicará la clasificación de mayor impacto encontrada:
+
+- `major`: cambios incompatibles, migraciones manuales obligatorias o ruptura
+  de contratos consumidos por proyectos generados;
+- `minor`: nuevas capacidades compatibles, nuevas opciones o módulos que
+  amplían la plantilla sin romper actualizaciones;
+- `patch`: correcciones, documentación, refactors, dependencias o mantenimiento
+  sin una nueva capacidad incompatible.
+
+Cuando el impacto sea ambiguo —incluido el tratamiento de cambios
+incompatibles durante `0.x`— explicará la ambigüedad en vez de ocultarla. La
+versión siempre será una propuesta que el usuario puede aceptar o reemplazar.
+
+## Flujo de ejecución
+
+1. Ejecutar `inspect` y detenerse ante cualquier guarda fallida.
+2. Examinar commits y diff desde el último tag hasta el SHA remoto de `main`.
+3. Proponer `patch`, `minor` o `major` y mostrar:
+   - tag anterior y tag sugerido;
+   - razones y cambios determinantes;
+   - SHA y asunto del commit;
+   - remoto que recibirá el tag;
+   - efecto irreversible: el push dispara la publicación de la plantilla.
+4. Ejecutar `just template check` sin mutar Git.
+5. Si el chequeo pasa, preguntar exactamente si se confirma crear y publicar
+   el tag sugerido desde el SHA mostrado.
+6. Detener el turno y esperar una respuesta explícita. El silencio, una
+   respuesta ambigua o una petición de otra versión no cuentan como aprobación.
+7. Si cambia la versión, recalcular el resumen y pedir una nueva confirmación.
+8. Tras la aprobación, ejecutar `publish` con el tag y SHA aprobados.
+9. Verificar con el remoto que el tag quedó creado e informar que el workflow
+   de publicación fue detonado.
+
+## Guardas y errores
+
+Todos los fallos anteriores al push deben ser accionables y ocurrir antes de
+crear el tag cuando sea posible:
+
+- repo o remoto incorrecto: abortar;
+- rama distinta de `main`, cambios locales o `HEAD` no publicado: abortar;
+- ausencia de tags SemVer: permitir únicamente el flujo de primer release que
+  el script defina de forma explícita;
+- último tag canónico ausente del espejo: abortar e indicar que se debe
+  relanzar el workflow fallido, nunca crear una versión nueva;
+- `just template check` fallido: no solicitar confirmación ni publicar;
+- tag nuevo ya existente en cualquier destino: abortar;
+- cambio del SHA o de refs entre aprobación y ejecución: abortar y volver a
+  presentar la propuesta;
+- push fallido después de crear el tag local: conservarlo, informar el estado y
+  no borrarlo automáticamente.
+
+En el estado observado al diseñar el skill, `v0.1.0` existe en el repositorio
+canónico pero no en el espejo. La guarda de sincronización debe bloquear una
+nueva versión hasta resolver esa publicación pendiente.
+
+## Validación
+
+La implementación se verificará sin crear tags reales:
+
+- pruebas de parsing, orden e incremento SemVer;
+- repositorios Git temporales para rama, worktree, refs y errores de carrera;
+- ejecución real de `inspect` en modo no mutante;
+- `quick_validate.py` sobre el skill canónico;
+- `just sync-skills --all release-template` y comprobación de sincronía;
+- forward-test con un subagente que deba proponer una versión pero no tenga
+  autorización para publicarla.
+
+La prueba del camino de `publish` utilizará remotos temporales. Ninguna prueba
+empujará tags a `Llamitai/wise` ni al espejo público.

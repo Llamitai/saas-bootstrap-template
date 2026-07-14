@@ -23,9 +23,26 @@ install:
 test:
     pnpm test
 
-# Lint
+# ─── CODE QUALITY ───────────────────────────────────────────────
+
+# Format with Biome
+format:
+    pnpm format:write
+
+# Lint with Biome (safe autofix only)
 lint:
-    pnpm lint
+    pnpm lint:fix
+
+# Type-check with TypeScript
+typecheck:
+    pnpm type-check
+
+# Enforce feature-first architecture boundaries
+lint-imports:
+    pnpm lint:boundaries
+
+# Run format + lint + typecheck + architecture boundaries
+code_quality: format lint typecheck lint-imports
 
 # Full quality gate (type-check + biome + tests + boundaries + build)
 verify:

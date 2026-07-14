@@ -55,7 +55,7 @@ class LoginTestContext:
     tenant_id: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict) -> "LoginTestContext":
+    def from_dict(cls, data: dict) -> LoginTestContext:
         tenant = data.get("tenant") or {}
 
         return cls(

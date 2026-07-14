@@ -14,7 +14,7 @@ class Pagination(BaseModel):
     limit: int | None = None
 
     @classmethod
-    def from_page(cls, page: "Page[Any]") -> Self:
+    def from_page(cls, page: Page[Any]) -> Self:
         return cls(
             next_cursor=page.next_cursor,
             limit=page.limit,
@@ -32,7 +32,7 @@ class PageIndex(BaseModel):
         return encode_base64(f"{self.value.isoformat()}|{self.uuid}")
 
     @classmethod
-    def from_base64(cls, base64: str) -> "PageIndex":
+    def from_base64(cls, base64: str) -> PageIndex:
         decoded_value = decode_base64(base64)
         value, uuid = decoded_value.split("|")
         return cls(
@@ -41,7 +41,7 @@ class PageIndex(BaseModel):
         )
 
     @classmethod
-    def initial(cls) -> "PageIndex":
+    def initial(cls) -> PageIndex:
         return cls(value=None, uuid=None)
 
 
@@ -65,7 +65,7 @@ class Page[T](BaseModel):
         cls,
         page_size: int = settings.PAGINATION_PAGE_SIZE,
         items: list[T] | None = None,
-    ) -> "Page[T]":
+    ) -> Page[T]:
         return cls(
             next_cursor=None,
             items=items or [],

@@ -17,5 +17,5 @@ class SendEmailCommand(Command):
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, kwargs: dict) -> "SendEmailCommand":
+    def from_dict(cls, kwargs: dict) -> SendEmailCommand:
         return cls(**kwargs)

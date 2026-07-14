@@ -7,7 +7,7 @@
 # ============================================================================
 [environment]
 # Versión de Python objetivo
-python-version = "3.13"
+python-version = "3.14"
 
 # Raíz de resolución de módulos: el código importa con prefijo `src.`
 # (`from src.common...`), así que la raíz es backend/, NO backend/src/.

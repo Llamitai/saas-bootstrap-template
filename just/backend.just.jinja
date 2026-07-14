@@ -77,6 +77,8 @@ test marker="unit" *args="": _ensure-env
           }
           trap cleanup_api_stack EXIT
           docker compose up -d
+          echo "🗃️ Applying database migrations..."
+          docker compose run --rm api alembic upgrade head
           echo "⏳ Waiting for API on :8200..."
           for attempt in $(seq 1 120); do
               if curl -sf http://localhost:8200 >/dev/null 2>&1; then break; fi
@@ -118,7 +120,7 @@ lint-imports: _ensure-env
     docker compose run --rm api uv run lint-imports
 
 # Run format + lint + typecheck + architecture boundaries
-quality: format lint typecheck lint-imports
+code_quality: format lint typecheck lint-imports
 
 # ─── DATABASE / MIGRATIONS ──────────────────────────────────────
 
