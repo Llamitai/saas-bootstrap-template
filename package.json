@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "check": "pnpm -C frontend check",
+    "docs": "pnpm -C docs dev",
+    "docs:build": "pnpm -C docs build"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

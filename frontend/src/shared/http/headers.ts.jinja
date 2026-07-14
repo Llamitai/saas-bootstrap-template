@@ -1,0 +1,30 @@
+import { publicConfig } from "@/shared/config/public";
+
+export const isServer = (): boolean => typeof window === "undefined";
+
+export const getCommonHeaders = (
+  tenantSlug?: string | null,
+  accessToken?: string | null
+) => {
+  const client = `web:app.[[ project_slug ]].web/latest:${publicConfig.version}`;
+
+  let headers: Record<string, string> = {
+    "X-Client": client,
+  };
+
+  if (tenantSlug) {
+    headers = {
+      ...headers,
+      "X-Tenant": tenantSlug,
+    };
+  }
+
+  if (accessToken) {
+    headers = {
+      ...headers,
+      Authorization: `Bearer ${accessToken}`,
+    };
+  }
+
+  return headers;
+};

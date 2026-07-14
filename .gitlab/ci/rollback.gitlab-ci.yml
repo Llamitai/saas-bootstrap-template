@@ -1,0 +1,92 @@
+# Mirror of .github/workflows/rollback.yml (formerly redeploy.yml)
+# Redeploy an already-built image tag to an environment WITHOUT rebuilding.
+# GitLab has no workflow_dispatch inputs, so run from "Run pipeline" with:
+#   ROLLBACK=true                 (required, gates the jobs on)
+#   SERVICE=both                  (backend | frontend | both)
+#   TARGET_ENV=Production         (Production | Development)
+#   VERSION=v1.2.3                (image tag to deploy, e.g. v1.2.3 or sha-abc1234)
+#
+# Verifies the image exists in the GitLab registry before deploying.
+
+.rollback-base:
+  stage: deploy
+  image: alpine:3.20
+  interruptible: false
+  environment:
+    name: $TARGET_ENV
+  before_script:
+    - apk add --no-cache curl jq skopeo || apk add --no-cache curl jq
+
+rollback:backend:
+  extends: .rollback-base
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $ROLLBACK == "true" && ($SERVICE == "backend" || $SERVICE == "both")
+      when: manual
+      allow_failure: false
+  script:
+    - |
+      set -eu
+      IMAGE="$CI_REGISTRY_IMAGE/backend:$VERSION"
+      echo "Verifying $IMAGE exists..."
+      skopeo inspect --creds "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" "docker://$IMAGE" >/dev/null
+      ENV_ARRAY=$(jq -n \
+        --arg IMAGE_TAG "$VERSION" \
+        --arg INFISICAL_SECRET_ENV "$INFISICAL_SECRET_ENV" \
+        --arg PROJECT_ID "$BACKEND_PROJECT_ID" \
+        --arg INFISICAL_API_URL "$INFISICAL_API_URL" \
+        --arg INFISICAL_MACHINE_CLIENT_ID "$INFISICAL_MACHINE_CLIENT_ID" \
+        --arg INFISICAL_MACHINE_CLIENT_SECRET "$INFISICAL_MACHINE_CLIENT_SECRET" \
+        --arg ADMIN_SECRET "$ADMIN_SECRET" \
+        --arg ADMIN_EMAIL "$ADMIN_EMAIL" \
+        --arg ADMIN_PASSWORD "$ADMIN_PASSWORD" \
+        --arg ADMIN_DB_HOST "$ADMIN_DB_HOST" \
+        --arg ADMIN_DB_DATABASE "$ADMIN_DB_DATABASE" \
+        --arg ADMIN_DB_USER "$ADMIN_DB_USER" \
+        --arg ADMIN_DB_PASSWORD "$ADMIN_DB_PASSWORD" \
+        --arg ADMIN_PUBLIC_URL "$ADMIN_PUBLIC_URL" \
+        '[
+          {name:"IMAGE_TAG",value:$IMAGE_TAG},
+          {name:"INFISICAL_SECRET_ENV",value:$INFISICAL_SECRET_ENV},
+          {name:"PROJECT_ID",value:$PROJECT_ID},
+          {name:"INFISICAL_API_URL",value:$INFISICAL_API_URL},
+          {name:"INFISICAL_MACHINE_CLIENT_ID",value:$INFISICAL_MACHINE_CLIENT_ID},
+          {name:"INFISICAL_MACHINE_CLIENT_SECRET",value:$INFISICAL_MACHINE_CLIENT_SECRET},
+          {name:"ADMIN_SECRET",value:$ADMIN_SECRET},
+          {name:"ADMIN_EMAIL",value:$ADMIN_EMAIL},
+          {name:"ADMIN_PASSWORD",value:$ADMIN_PASSWORD},
+          {name:"ADMIN_DB_HOST",value:$ADMIN_DB_HOST},
+          {name:"ADMIN_DB_DATABASE",value:$ADMIN_DB_DATABASE},
+          {name:"ADMIN_DB_USER",value:$ADMIN_DB_USER},
+          {name:"ADMIN_DB_PASSWORD",value:$ADMIN_DB_PASSWORD},
+          {name:"ADMIN_PUBLIC_URL",value:$ADMIN_PUBLIC_URL}
+        ]')
+    - sh .gitlab/ci/portainer-redeploy.sh "$BACKEND_DEPLOYMENT_SERVICE" "$ENV_ARRAY"
+
+rollback:frontend:
+  extends: .rollback-base
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $ROLLBACK == "true" && ($SERVICE == "frontend" || $SERVICE == "both")
+      when: manual
+      allow_failure: false
+  script:
+    - |
+      set -eu
+      IMAGE="$CI_REGISTRY_IMAGE/frontend:$VERSION"
+      echo "Verifying $IMAGE exists..."
+      skopeo inspect --creds "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" "docker://$IMAGE" >/dev/null
+      ENV_ARRAY=$(jq -n \
+        --arg IMAGE_TAG "$VERSION" \
+        --arg INFISICAL_SECRET_ENV "$INFISICAL_SECRET_ENV" \
+        --arg PROJECT_ID "$FRONTEND_PROJECT_ID" \
+        --arg INFISICAL_API_URL "$INFISICAL_API_URL" \
+        --arg INFISICAL_MACHINE_CLIENT_ID "$INFISICAL_MACHINE_CLIENT_ID" \
+        --arg INFISICAL_MACHINE_CLIENT_SECRET "$INFISICAL_MACHINE_CLIENT_SECRET" \
+        '[
+          {name:"IMAGE_TAG",value:$IMAGE_TAG},
+          {name:"INFISICAL_SECRET_ENV",value:$INFISICAL_SECRET_ENV},
+          {name:"PROJECT_ID",value:$PROJECT_ID},
+          {name:"INFISICAL_API_URL",value:$INFISICAL_API_URL},
+          {name:"INFISICAL_MACHINE_CLIENT_ID",value:$INFISICAL_MACHINE_CLIENT_ID},
+          {name:"INFISICAL_MACHINE_CLIENT_SECRET",value:$INFISICAL_MACHINE_CLIENT_SECRET}
+        ]')
+    - sh .gitlab/ci/portainer-redeploy.sh "$FRONTEND_DEPLOYMENT_SERVICE" "$ENV_ARRAY"

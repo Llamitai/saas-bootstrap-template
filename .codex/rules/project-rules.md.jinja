@@ -1,0 +1,22 @@
+# Codex Project Rules - [[ project_name ]]
+
+## Project Overview
+This repository is [[ project_name ]], a multi-tenant boilerplate for authenticated
+B2B products: FastAPI backend, Next.js frontend, and a React Router 7 +
+Fumadocs docs site.
+
+`AGENTS.md` at the repo root is the single detailed instruction source. Read it
+before making changes; these rules only summarize it.
+
+## Rules
+- Backend (`backend/src`) follows Clean Architecture with DDD:
+  `domain -> application -> infrastructure -> presentation`.
+- Frontend follows the feature-first flow:
+  `app -> features -> entities -> shared`
+  (see `docs/internal/architecture/frontend-architecture.md`).
+- Browser code must call the backend only through same-origin Next.js BFF
+  routes under `/api/...`.
+- Use the existing `just` commands for local development:
+  `just backend`, `just frontend`, and `just docs`.
+- Keep docs, tests, fixtures, and examples focused on [[ project_name ]] and its
+  current core modules.

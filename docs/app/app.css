@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@theme {
+  --font-sans: "Figtree", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-fd-background: oklch(0.984 0.002 252.121);
+  --color-fd-foreground: oklch(0.222 0.029 253.225);
+  --color-fd-muted: oklch(0.945 0.005 252.232);
+  --color-fd-muted-foreground: oklch(0.558 0.025 252.534);
+  --color-fd-popover: #f7fafa;
+  --color-fd-popover-foreground: oklch(0.222 0.029 253.225);
+  --color-fd-card: oklch(1 0 0);
+  --color-fd-card-foreground: oklch(0.222 0.029 253.225);
+  --color-fd-border: oklch(0.905 0.011 252.311);
+  --color-fd-primary: oklch(0.59 0.095 180.54);
+  --color-fd-primary-foreground: oklch(1 0 0);
+  --color-fd-secondary: oklch(0.951 0.018 186.07);
+  --color-fd-secondary-foreground: oklch(0.222 0.029 253.225);
+  --color-fd-accent: oklch(0.951 0.018 186.07);
+  --color-fd-accent-foreground: oklch(0.222 0.029 253.225);
+  --color-fd-ring: oklch(0.59 0.095 180.54);
+  --radius-fd: 0.75rem;
+}
+
+:root {
+  color-scheme: light;
+  --fd-layout-width: 88rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-fd-background: oklch(0.172 0.018 253.225);
+  --color-fd-foreground: oklch(0.96 0.004 252.121);
+  --color-fd-muted: oklch(0.245 0.019 252.232);
+  --color-fd-muted-foreground: oklch(0.72 0.019 252.534);
+  --color-fd-popover: oklch(0.208 0.018 253.225);
+  --color-fd-popover-foreground: oklch(0.96 0.004 252.121);
+  --color-fd-card: oklch(0.205 0.018 253.225);
+  --color-fd-card-foreground: oklch(0.96 0.004 252.121);
+  --color-fd-border: oklch(0.34 0.02 252.311);
+  --color-fd-primary: oklch(0.72 0.095 180.54);
+  --color-fd-primary-foreground: oklch(0.13 0.018 253.225);
+  --color-fd-secondary: oklch(0.25 0.026 186.07);
+  --color-fd-secondary-foreground: oklch(0.96 0.004 252.121);
+  --color-fd-accent: oklch(0.27 0.032 186.07);
+  --color-fd-accent-foreground: oklch(0.96 0.004 252.121);
+  --color-fd-ring: oklch(0.72 0.095 180.54);
+}
+
+html {
+  background: var(--color-fd-background);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.docs-control-button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  padding: 0.375rem 0.625rem;
+  color: var(--color-fd-foreground);
+  font-size: 0.8125rem;
+  line-height: 1;
+}
+
+.docs-control-button:hover {
+  background: var(--color-fd-accent);
+}
+
+.mermaid-frame {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  padding: 1rem;
+}
+
+.mermaid-frame svg {
+  max-width: 100%;
+  height: auto;
+}

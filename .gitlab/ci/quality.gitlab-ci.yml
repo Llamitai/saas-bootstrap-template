@@ -1,0 +1,89 @@
+# Mirror of .github/workflows/quality.yml
+# Runs on merge requests and on pushes to main/dev (and manual "Run pipeline").
+
+.quality-rules: &quality-rules
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+  - if: $CI_PIPELINE_SOURCE == "web"
+
+# --- Agent skills -----------------------------------------------------------
+quality:skills:
+  stage: quality
+  image: python:3.12-slim
+  rules: *quality-rules
+  script:
+    - python3 scripts/sync_skills.py --check
+
+# --- Template: Copier round-trip + branding leftover checks ------------------
+# `exists` keeps this job out of generated projects: they ship this CI file
+# verbatim but the template scaffolding (scripts/build_template.py) is
+# deliberately excluded from the template.
+quality:template:
+  stage: quality
+  image: python:3.12
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      exists: [scripts/build_template.py]
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+      exists: [scripts/build_template.py]
+    - if: $CI_PIPELINE_SOURCE == "web"
+      exists: [scripts/build_template.py]
+  before_script:
+    - pip install --quiet "copier>=9.6,<10"
+  script:
+    - python3 scripts/build_template.py --check
+
+# --- Backend: ruff + ty + import-linter + unit tests ------------------------
+quality:backend:
+  stage: quality
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  rules: *quality-rules
+  services:
+    - name: postgres:17
+      alias: postgres
+  variables:
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_DB: postgres
+    POSTGRES_HOST: postgres
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+  cache:
+    key:
+      files:
+        - backend/uv.lock
+    paths:
+      - .uv-cache
+  before_script:
+    - cd backend
+    - uv sync
+  script:
+    - uv run ruff check .
+    - uv run ty check
+    - PYTHONPATH=. uv run lint-imports
+    - uv run pytest -m "not api"
+
+# --- Frontend: tsc + biome + vitest + boundaries + build --------------------
+quality:frontend:
+  stage: quality
+  image: node:22-slim
+  rules: *quality-rules
+  variables:
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  cache:
+    key:
+      files:
+        - frontend/pnpm-lock.yaml
+    paths:
+      - frontend/.pnpm-store
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@11.1.2 --activate
+    - cd frontend
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm type-check
+    - pnpm check
+    - pnpm test
+    - pnpm lint:boundaries
+    - pnpm build

@@ -1,0 +1,168 @@
+# ruff.toml
+# https://docs.astral.sh/ruff/
+
+# ============================================================================
+# CONFIGURACIÓN GENERAL
+# ============================================================================
+
+# Longitud de línea estándar
+line-length = 119
+
+# Versión de Python objetivo
+target-version = "py313"
+
+# Directorios a excluir
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "migrations",  # Alembic migrations
+    "node_modules",
+]
+
+# ============================================================================
+# LINTING
+# ============================================================================
+
+[lint]
+# Reglas habilitadas
+#
+# Set pragmático y de alta señal: sólo familias que cazan bugs reales y hacen
+# poco ruido. Las familias verbosas/opinadas (ANN, EM, ARG, PL, N, PTH...)
+# se dejan fuera a propósito; se pueden reintroducir de forma incremental
+# cuando el equipo decida adoptarlas.
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes (bugs reales: nombres indefinidos, vars sin usar, dup keys)
+    "I",      # isort (orden de imports)
+    "UP",     # pyupgrade (modernización de sintaxis)
+    "B",      # flake8-bugbear (patrones de bug)
+    "S",      # flake8-bandit (seguridad)
+    "A",      # flake8-builtins (shadowing de builtins/stdlib)
+    "ASYNC",  # flake8-async (llamadas bloqueantes en código async)
+    "DTZ",    # flake8-datetimez (datetimes naive)
+    "G",      # flake8-logging-format
+    "LOG",    # flake8-logging
+    "ISC",    # implicit str concat (coma faltante en listas de strings)
+    "SIM",    # flake8-simplify
+    "T10",    # flake8-debugger (breakpoint olvidado)
+    "T20",    # flake8-print
+    "TID",    # flake8-tidy-imports (activa ban-relative-imports de abajo)
+    "RUF",    # reglas propias de Ruff
+]
+
+# Ignorar reglas específicas
+ignore = [
+    # Seguridad (falsos positivos frecuentes)
+    "S101",    # assert usado (común en tests)
+    "S105",    # hardcoded password string (falsos positivos: enums PASS, token_type, nombres de env vars)
+    "S311",    # generadores pseudo-random (ok para uso no-crypto)
+
+    # Bugbear
+    "B904",    # raise sin `from` dentro de except (opinado)
+
+    # Builtins
+    "A002",    # args llamados id/type/input son idiomáticos en endpoints/dominio
+
+    # Async
+    "ASYNC109", # param timeout en funciones async (estilo trio, opinada)
+
+    # Logging
+    "G004",    # f-strings en logging (opinada)
+
+    # Unicode ambiguo: docstrings/comentarios en español
+    "RUF001",
+    "RUF002",
+    "RUF003",
+
+    # Modernizaciones opt-in no adoptadas repo-wide (habilitar cuando el equipo migre)
+    "UP038",   # isinstance con tupla: regla deprecada upstream, fix PEP 604 más lento
+    "UP042",   # StrEnum: el mixin `(str, Enum)` es intencional (str() estable)
+    "UP046",   # PEP 695 generics: el repo usa `Generic[T]` + `TypeVar`
+]
+
+# Permitir autofix para todas las reglas
+fixable = ["ALL"]
+unfixable = ["B"]  # No auto-fixear bugbear (los fixes pueden cambiar semántica)
+
+# Variables no usadas con underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# ============================================================================
+# IGNORAR POR ARCHIVO
+# ============================================================================
+
+[lint.per-file-ignores]
+# Archivos __init__.py
+"__init__.py" = [
+    "E402",  # Module import no al inicio
+    "F401",  # Imports no usados (re-exports)
+    "F403",  # Star imports
+]
+
+# Tests
+"tests/**/*.py" = [
+    "S101",    # Uso de assert
+    "S106",    # passwords hardcodeadas en kwargs (fixtures/factories)
+    "B017",    # assert-raises-exception amplio (aceptable en tests)
+]
+
+# Scripts CLI
+"scripts/**/*.py" = [
+    "T201",   # print permitido en scripts
+]
+
+# Migraciones Alembic
+"*/versions/*.py" = [
+    "E501",  # Línea muy larga
+]
+
+# Endpoints FastAPI
+"*/endpoints/*.py" = [
+    "B008",   # function call en argument defaults (Depends es válido)
+]
+
+# ============================================================================
+# CONFIGURACIÓN DE HERRAMIENTAS
+# ============================================================================
+
+# isort (ordenamiento de imports)
+[lint.isort]
+known-first-party = ["src"]
+
+# flake8-builtins
+[lint.flake8-builtins]
+builtins-allowed-modules = ["profile"]  # src/profile es un módulo de dominio; renombrarlo sería invasivo
+
+# flake8-tidy-imports
+[lint.flake8-tidy-imports]
+ban-relative-imports = "parents"  # Prohibir imports relativos de padres
+
+# ============================================================================
+# FORMATTER
+# ============================================================================
+
+[format]
+# Usar comillas dobles
+quote-style = "double"
+
+# Indentar con espacios
+indent-style = "space"
+
+# Formatear código en docstrings
+docstring-code-format = true
+
+# Longitud de línea para código en docstrings
+docstring-code-line-length = 88
+
+# Magic trailing comma (compatibilidad con Black)
+skip-magic-trailing-comma = false
+
+# Line endings estilo Unix
+line-ending = "auto"

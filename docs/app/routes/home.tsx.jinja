@@ -1,0 +1,74 @@
+import { ArrowRight, BookOpen, Search } from "lucide-react";
+import { Link } from "react-router";
+import { ThemeSwitchWithLogout } from "@/components/theme-switch-with-logout";
+
+export function meta() {
+  return [
+    { title: "[[ project_name ]] Docs" },
+    {
+      name: "description",
+      content: "Documentación técnica del boilerplate [[ project_name ]].",
+    },
+  ];
+}
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-fd-background">
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-6">
+        <header className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-fd-muted-foreground">
+              [[ project_name ]]
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-normal">
+              Documentación técnica
+            </h1>
+          </div>
+          <ThemeSwitchWithLogout />
+        </header>
+
+        <section className="grid flex-1 content-center gap-8 py-14 md:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <p className="max-w-2xl text-lg leading-8 text-fd-muted-foreground">
+              Mapa técnico para entender el core multi-tenant, su arquitectura,
+              los conceptos de dominio y las rutinas de operación.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                className="inline-flex items-center gap-2 rounded-lg bg-fd-primary px-4 py-2 text-sm font-medium text-fd-primary-foreground"
+                to="/docs"
+              >
+                Abrir documentación
+                <ArrowRight aria-hidden="true" size={16} />
+              </Link>
+              <Link
+                className="inline-flex items-center gap-2 rounded-lg border border-fd-border px-4 py-2 text-sm font-medium"
+                to="/docs/arquitectura"
+              >
+                Ver arquitectura
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-3 self-center">
+            <div className="rounded-lg border border-fd-border bg-fd-card p-4">
+              <BookOpen className="text-fd-primary" size={20} />
+              <h2 className="mt-3 text-base font-semibold">Contenido curado</h2>
+              <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">
+                Páginas MDX bajo `docs/content/docs`, ordenadas por `meta.json`.
+              </p>
+            </div>
+            <div className="rounded-lg border border-fd-border bg-fd-card p-4">
+              <Search className="text-fd-primary" size={20} />
+              <h2 className="mt-3 text-base font-semibold">Búsqueda estática</h2>
+              <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">
+                Índice Orama prerenderizado en `/api/search`.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

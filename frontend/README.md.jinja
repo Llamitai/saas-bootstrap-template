@@ -1,0 +1,43 @@
+# [[ project_name ]] Frontend
+
+App web autenticada (paquete `[[ project_slug ]]-web`): UI base para autenticación,
+tenants, miembros, roles, settings, perfil y superuser. Sin superficie de
+marketing. Puerto local `3000`.
+
+## Stack
+Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind CSS v4 · shadcn + Base UI ·
+Zustand · TanStack Query · axios · zod · react-hook-form · next-intl.
+Lint/format con **Biome** · unit con **Vitest** · e2e con **Playwright**. Gestor: `pnpm` (Node ≥ 22).
+
+## Comandos (`just frontend <cmd>`)
+```bash
+just frontend dev              # dev server (:3000)
+just frontend build            # build de producción
+just frontend install          # instalar dependencias (pnpm)
+just frontend test             # unit tests (vitest)
+just frontend lint             # Biome
+just frontend e2e              # Playwright · e2e-ui / e2e-headed / e2e-spec <spec>
+```
+`just frontend` lista todo.
+
+## Reglas obligatorias (para agentes)
+- **BFF**: el código de navegador (`"use client"`, hooks, handlers) **nunca** llama al backend
+  directo vía `Settings.apiBaseUrl` / `NEXT_PUBLIC_*`. Va por una ruta BFF same-origin en
+  `src/app/api/**/route.ts` usando los helpers HTTP de `src/shared/http/**`.
+  Referencia canónica: login → `/api/auth/login` → BFF → `serverHttp`.
+- Tráfico cliente ya autenticado: usa clientes same-origin de `src/shared/http/**`. Nunca
+  instancies axios contra `Settings.apiBaseUrl` desde un módulo cliente.
+- **Imports absolutos** `@/...` para cruces entre capas; evita imports relativos largos.
+- Botones con carga: usa el estado `loading` del `Button` compartido.
+- Features nuevas: los hooks llaman `serverHttp`/`authHttp` vía BFF; no agregues interfaces
+  `domain/repositories` ni wrappers `infrastructure/repositories/http-*`.
+
+## Estructura (`src/`)
+- `app/` — App Router: grupos `(protected)`/`(public)` y **rutas BFF** `api/**/route.ts`.
+- `features/` — slices por flujo: app-shell, auth, tenants, members, roles, settings, profile y superuser.
+- `entities/` — entidades compartidas entre features.
+- `shared/` — UI base, HTTP, config, providers y helpers reutilizables.
+
+## Docs profundas
+En [`../docs/internal/architecture/frontend-architecture.md`](../docs/internal/architecture/frontend-architecture.md):
+arquitectura frontend canónica.

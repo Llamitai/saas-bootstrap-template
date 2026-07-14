@@ -1,0 +1,63 @@
+import { Moon, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LogoutButton } from "@/components/logout-button";
+
+const storageKey = "[[ project_slug ]]-docs-theme";
+
+type ThemeMode = "light" | "dark";
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const stored = window.localStorage.getItem(storageKey);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function applyTheme(theme: ThemeMode) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.dataset.theme = theme;
+  window.localStorage.setItem(storageKey, theme);
+}
+
+export function ThemeSwitchWithLogout() {
+  const [theme, setTheme] = useState<ThemeMode>("light");
+
+  useEffect(() => {
+    const initialTheme = getInitialTheme();
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
+  }, []);
+
+  function toggleTheme() {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      applyTheme(next);
+      return next;
+    });
+  }
+
+  const Icon = theme === "dark" ? Sun : Moon;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        aria-label="Cambiar tema"
+        className="docs-control-button"
+        onClick={toggleTheme}
+        type="button"
+      >
+        <Icon aria-hidden="true" size={15} />
+        {theme === "dark" ? "Claro" : "Oscuro"}
+      </button>
+      <LogoutButton />
+    </div>
+  );
+}

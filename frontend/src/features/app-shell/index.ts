@@ -1,0 +1,14 @@
+export type { BreadcrumbItemType } from "@/features/app-shell/ui/app-shell";
+export { AppShell } from "@/features/app-shell/ui/app-shell";
+export { HelpSidebar } from "@/features/app-shell/ui/help-sidebar";
+export { NavActiveIndicator } from "@/features/app-shell/ui/nav-active-indicator";
+export { NavUser } from "@/features/app-shell/ui/nav-user";
+export { PermissionGuard } from "@/features/app-shell/ui/permission-guard";
+export { SessionSync } from "@/features/app-shell/ui/session-sync";
+export type { ShellBreadcrumbItem } from "@/features/app-shell/ui/shell-header";
+export { ShellHeader } from "@/features/app-shell/ui/shell-header";
+export { StoreInitializer } from "@/features/app-shell/ui/store-initializer";
+export { SuperuserActionsMenu } from "@/features/app-shell/ui/superuser-actions-menu";
+export { TenantHead } from "@/features/app-shell/ui/tenant-head";
+export { ThemeProvider } from "@/features/app-shell/ui/theme-provider";
+export { ThemeSwitcher } from "@/features/app-shell/ui/theme-switcher";

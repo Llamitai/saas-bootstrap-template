@@ -1,0 +1,84 @@
+---
+title: Operación
+description: Configuración local, build, despliegue y mantenimiento del proyecto.
+---
+
+<Callout title="En resumen">
+  La operación local se apoya en `just`, Docker para servicios backend y `pnpm` para frontend y documentación. La documentación se puede desarrollar en `:4321` y compilar como salida prerenderizada.
+</Callout>
+
+## Configuración local
+
+<Steps>
+  <Step>
+    ### Backend
+    Ejecuta `just backend dev` para levantar API, PostgreSQL, Redis, MinIO, Mailpit y Directus.
+  </Step>
+  <Step>
+    ### Frontend
+    Ejecuta `just frontend dev` o `pnpm -C frontend dev` para iniciar la app principal.
+  </Step>
+  <Step>
+    ### Documentación
+    Ejecuta `pnpm docs` desde la raíz o `pnpm --prefix docs dev` para abrir la documentación.
+  </Step>
+</Steps>
+
+## Variables de documentación
+
+`docs/.env.example` define:
+
+<TypeTable
+  type={{
+    VITE_API_HOST: {
+      description: "Host del backend FastAPI usado por el login cliente.",
+      type: "URL",
+      default: "http://localhost:8200",
+    },
+    VITE_DOCS_REQUIRE_AUTH: {
+      description: "Activa el guard cliente de documentación privada.",
+      type: "boolean string",
+      default: "false",
+    },
+  }}
+/>
+
+## Build y despliegue
+
+```mermaid
+flowchart LR
+  mdx[MDX + meta.json] --> source[Fumadocs source]
+  source --> rr[React Router build]
+  rr --> html[HTML prerenderizado]
+  rr --> search[/api/search estático]
+  rr --> llms[LLMS text routes]
+  html --> host[Static host]
+```
+
+Comandos principales:
+
+```bash
+pnpm --prefix docs types:check
+pnpm --prefix docs build
+pnpm --prefix docs start
+```
+
+## Seguridad del login cliente
+
+<Callout title="Importante">
+  El guard de `auth-guard.tsx` es cliente. En un sitio estático, el contenido ya prerenderizado existe en los archivos generados, así que no protege documentos sensibles a nivel servidor. Para contenido confidencial, sirve el build detrás de autenticación en infraestructura o usa un servidor que autorice cada request.
+</Callout>
+
+## Rutinas de mantenimiento
+
+<Accordions type="single">
+  <Accordion title="Agregar una página">
+    Crea un `.mdx` en `docs/content/docs`, usa frontmatter `title` y `description`, abre con `Callout` y actualiza el `meta.json` del directorio.
+  </Accordion>
+  <Accordion title="Actualizar búsqueda">
+    El índice Orama se regenera con `pnpm --prefix docs build`.
+  </Accordion>
+  <Accordion title="Revisar contratos">
+    Si cambian límites de módulo, persistencia, seguridad o flujos core, crea un ADR en `docs/internal/adr`.
+  </Accordion>
+</Accordions>

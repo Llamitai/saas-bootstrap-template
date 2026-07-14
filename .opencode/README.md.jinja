@@ -1,0 +1,57 @@
+# OpenCode - Project Configuration
+
+Este directorio contiene la configuración personalizada de OpenCode para [[ project_name ]].
+
+## Estructura
+
+```
+.opencode/
+├── opencode.json          # Configuración principal (MCP, plugins, skills, commands, hooks)
+├── skills/                # Custom skills del proyecto
+├── commands/              # Slash commands personalizados
+├── hooks/                 # Hooks de OpenCode
+└── README.md              # Este archivo
+```
+
+## MCP Servers Configurados
+
+- **codegraph** - Knowledge graph del código (tree-sitter parsed)
+- **shadcn** - shadcn/ui component registry
+- **chrome-devtools** - Chrome DevTools automation
+- **playwright** - Browser automation
+- **context7** - Library documentation (key vía `{env:CONTEXT7_API_KEY}`)
+- **tailwindcss-server** - Tailwind CSS utilities
+
+## Skills Disponibles
+
+Los skills se cargan automáticamente desde `.opencode/skills/`. El inventario
+real es el contenido del directorio (`ls .opencode/skills`); la descripción de
+cada skill está en su `SKILL.md`. No mantengas listas duplicadas aquí:
+`.opencode/skills/` es un subconjunto sincronizado de `.claude/skills/` vía
+`just sync-skills`.
+
+## Commands Disponibles
+
+Los commands se cargan desde `.opencode/commands/`. El inventario real es el
+contenido del directorio (`ls .opencode/commands`); cada archivo `.md` define
+un command.
+
+## Hooks
+
+Los hooks se definen en `.opencode/hooks/` y se ejecutan automáticamente según los eventos configurados.
+
+## Portabilidad
+
+La configuración versionada debe evitar rutas absolutas, secrets y estado local.
+Las integraciones dependientes de una máquina concreta deben vivir en la
+configuración global del usuario, no en `.opencode/opencode.json`.
+
+## Uso
+
+OpenCode detecta automáticamente esta configuración al ejecutarse desde el directorio del proyecto.
+
+## Recursos
+
+- [OpenCode Documentation](https://opencode.ai/docs)
+- [MCP Servers](https://modelcontextprotocol.io)
+- [Agent Skills Specification](http://agentskills.io)

@@ -1,0 +1,74 @@
+"""Synchronize default tenant roles for existing tenants.
+
+Usage:
+    docker compose run --rm api python scripts/bootstrap_tenant_roles.py
+    python scripts/bootstrap_tenant_roles.py --tenant-slug [[ project_slug ]]-dev
+"""
+
+import asyncio
+import sys
+from pathlib import Path
+from typing import Annotated
+
+import typer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+app = typer.Typer(add_completion=False, help="Synchronize default tenant roles.")
+
+
+async def _bootstrap(session: AsyncSession, tenant_slug: str | None) -> int:
+    from src.common.database.models.tenants.tenant import TenantORM
+    from src.tenants.application.use_cases.role.bootstrapper import TenantRolesBootstrapper
+    from src.tenants.infrastructure.repositories.sql_tenant_role import SQLTenantRoleRepository
+
+    stmt = select(TenantORM).where(TenantORM.is_deleted.is_(False)).order_by(TenantORM.slug)
+    if tenant_slug:
+        stmt = stmt.where(TenantORM.slug == tenant_slug)
+
+    tenants = list((await session.scalars(stmt)).all())
+    if tenant_slug and not tenants:
+        typer.secho(f"Tenant not found: {tenant_slug}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    role_repository = SQLTenantRoleRepository(session=session)
+    for tenant in tenants:
+        await TenantRolesBootstrapper(
+            tenant_id=tenant.uuid,
+            role_repository=role_repository,
+        ).execute()
+        typer.echo(f"  = roles synchronized: {tenant.slug}")
+
+    return len(tenants)
+
+
+@app.command()
+def sync(
+    tenant_slug: Annotated[
+        str | None,
+        typer.Option("--tenant-slug", "-t", help="Only synchronize this tenant slug."),
+    ] = None,
+) -> None:
+    """Create or update default roles for existing tenants."""
+
+    async def _run() -> None:
+        from src.common.database.config import DatabaseConfig
+        from src.common.settings import settings
+
+        db_config = DatabaseConfig(str(settings.async_database_url))
+        try:
+            async with db_config.session_maker() as session:
+                synced = await _bootstrap(session, tenant_slug)
+            typer.secho(f"\nDone! {synced} tenant(s) synchronized.", fg=typer.colors.GREEN, bold=True)
+        finally:
+            await db_config.dispose()
+
+    asyncio.run(_run())
+
+
+if __name__ == "__main__":
+    app()

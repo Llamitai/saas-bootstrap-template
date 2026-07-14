@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rename Project"
+  short_description: "Rename the neutral SaaS Bootstrap branding and project metadata."
+  default_prompt: "Rename this project by replacing the neutral SaaS Bootstrap branding tokens (SaaS Bootstrap, saas-bootstrap, saas_bootstrap) and updating related project metadata consistently."

@@ -1,0 +1,16 @@
+# Optional - install with 'lefthook install'
+pre-commit:
+  parallel: true
+  commands:
+    frontend-biome:
+      root: frontend/
+      glob: "*.{ts,tsx,json,css}"
+      run: pnpm exec biome check --write {staged_files}
+      stage_fixed: true
+    backend-ruff:
+      root: backend/
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files} && uv run ruff format {staged_files}
+      stage_fixed: true
+    skills-sync:
+      run: python3 scripts/sync_skills.py --check

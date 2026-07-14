@@ -1,0 +1,86 @@
+# Mirror of .github/workflows/api-tests.yml
+# Triggers:
+#   - Merge requests that touch backend/**
+#   - Scheduled pipelines (create a Pipeline Schedule, cron "0 3 * * *")
+#   - Manual "Run pipeline"
+# The api marker suite runs through docker compose, so this job needs
+# Docker-in-Docker (a privileged runner).
+
+api:tests:
+  stage: test
+  image: docker:27
+  timeout: 20m
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_TLS_VERIFY: "1"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - backend/**/*
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  before_script:
+    - apk add --no-cache just docker-cli-compose
+    - cp backend/.env.example backend/.env
+  script:
+    - just backend test api
+
+# Mirror of the quality.yml `notify` job: surface non-MR failures (scheduled /
+# manual) via a deduped GitLab issue (assignee gets the native email) + Slack.
+# Requires ALERT_API_TOKEN (api scope). ALERT_ASSIGNEE_ID + SLACK_WEBHOOK optional.
+api:notify:
+  stage: notify
+  image: alpine:3.20
+  needs:
+    - job: api:tests
+      artifacts: false
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_failure
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: on_failure
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      set -eu
+      LABEL="api-tests-failure"
+      API="$CI_API_V4_URL/projects/$CI_PROJECT_ID"
+
+      # 1) Deduped GitLab issue (assignee is emailed natively by GitLab).
+      OPEN=$(curl -sf -H "PRIVATE-TOKEN: $ALERT_API_TOKEN" \
+        "$API/issues?state=opened&labels=$LABEL")
+      if [ "$(echo "$OPEN" | jq 'length')" -gt 0 ]; then
+        IID=$(echo "$OPEN" | jq -r '.[0].iid')
+        curl -sf -X POST -H "PRIVATE-TOKEN: $ALERT_API_TOKEN" \
+          --data-urlencode "body=Still failing on a new run (\`$CI_PIPELINE_SOURCE\`): $CI_PIPELINE_URL" \
+          "$API/issues/$IID/notes" >/dev/null
+        echo "Commented on existing issue #$IID"
+      else
+        DESC=$(printf 'The API test suite failed outside of a merge request.\n\n- Pipeline: %s\n- Trigger: %s\n- Commit: %s' \
+          "$CI_PIPELINE_URL" "$CI_PIPELINE_SOURCE" "$CI_COMMIT_SHA")
+        curl -sf -X POST -H "PRIVATE-TOKEN: $ALERT_API_TOKEN" \
+          --data-urlencode "title=API test suite is failing" \
+          --data-urlencode "labels=$LABEL" \
+          --data-urlencode "description=$DESC" \
+          ${ALERT_ASSIGNEE_ID:+--data-urlencode "assignee_ids[]=$ALERT_ASSIGNEE_ID"} \
+          "$API/issues" >/dev/null
+        echo "Opened a new issue"
+      fi
+
+      # 2) Slack, only if configured.
+      if [ -n "${SLACK_WEBHOOK:-}" ]; then
+        curl -sf -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\":rotating_light: API tests failed on $CI_PROJECT_PATH — $CI_PIPELINE_URL (trigger: $CI_PIPELINE_SOURCE)\"}" \
+          "$SLACK_WEBHOOK"
+      else
+        echo "SLACK_WEBHOOK not configured — skipping Slack notification."
+      fi

@@ -1,0 +1,84 @@
+# Copier questionnaire and configuration for the SaaS Bootstrap template.
+#
+# Maintained by hand HERE (template/copier.yml in the canonical repo);
+# scripts/build_template.py copies it verbatim to the root of the generated
+# template. Never edit the copy in the template mirror — it is overwritten on
+# every publish.
+
+_min_copier_version: "9.6.0" # _copier_operation (used in _tasks) exists since 9.6.0
+
+_envops:
+  # Custom delimiters: the tree ships real Jinja (backend email templates) and
+  # `{{ }}` syntax in frontend/docs, which must pass through untouched.
+  # Comment delimiters too: frontend/src/i18n/messages/*.json contain literal
+  # `{#`, which the default `{# ... #}` comment syntax would swallow.
+  block_start_string: "[%"
+  block_end_string: "%]"
+  variable_start_string: "[["
+  variable_end_string: "]]"
+  comment_start_string: "[#"
+  comment_end_string: "#]"
+
+project_name:
+  type: str
+  help: Product display name (for example "Acme CRM")
+  validator: "[% if not project_name %]project_name is required[% endif %]"
+
+project_slug:
+  type: str
+  default: "[[ project_name | lower | replace(' ', '-') ]]"
+  help: Kebab-case slug for packages, images, buckets, and Docker resources
+  # Letter start, no trailing/consecutive hyphens (PEP 508 names and the
+  # derived python_name both require it).
+  validator: "[% if not project_slug | regex_search('^[a-z][a-z0-9]*(-[a-z0-9]+)*$') %]project_slug must be kebab-case (letter start, no trailing hyphen)[% endif %]"
+
+python_name:
+  type: str
+  default: "[[ project_slug | replace('-', '_') ]]"
+  help: Python identifier form of the slug (snake_case)
+  validator: "[% if not python_name | regex_search('^[a-z][a-z0-9_]*$') %]python_name must be snake_case[% endif %]"
+
+owner_email:
+  type: str
+  default: owner@example.com
+  help: Seed owner email (initial login)
+  validator: "[% if not owner_email | regex_search('^[^@ ]+@[^@ ]+\\.[^@ ]+$') %]owner_email must be a valid email address[% endif %]"
+
+_exclude:
+  # Declaring _exclude REPLACES Copier's default list (which includes
+  # copier.yml), so the relevant defaults are re-declared explicitly.
+  # node_modules/.venv/runtime dirs need no entries: the template is built
+  # from `git ls-files`, so they never exist in the template tree.
+  - copier.yml
+  - copier.yaml
+  - "~*"
+  - "*.py[co]"
+  - ".DS_Store"
+  - ".git"
+  - "__pycache__"
+  # Warning README for the template mirror repo; must not reach projects.
+  # (_exclude matches rendered names, so this also covers a .jinja variant.)
+  - ".github/README.md"
+
+_skip_if_exists:
+  # Consumers regenerate the backend lock (`uv lock`) after generation;
+  # `copier update` must never clobber the regenerated file.
+  - backend/uv.lock
+
+_tasks:
+  # Tasks also run on `copier update`; without the `when` guards an update
+  # would overwrite the user's real backend/.env on every update.
+  - command: "cp backend/.env.example backend/.env"
+    when: "[[ _copier_operation == 'copy' ]]"
+  - command: "git init"
+    when: "[[ _copier_operation == 'copy' ]]"
+
+_message_after_copy: |
+  [[ project_name ]] generated from SaaS Bootstrap.
+
+  Required before any production build:
+    cd [[ _copier_conf.dst_path ]]/backend && uv lock
+  (the production image installs with `uv sync --locked` and fails on the
+  stale lock that ships with the template; dev containers hide this.)
+
+  Start here: README.md → "Quick start".

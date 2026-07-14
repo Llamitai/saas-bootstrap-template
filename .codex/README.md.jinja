@@ -1,0 +1,51 @@
+# Codex - Project Configuration
+
+Este directorio contiene la configuración específica de [[ project_name ]] para Codex.
+
+## Estructura
+
+```
+.codex/
+├── config.toml          # Configuración principal (MCP servers, project settings)
+├── skills/              # Skills versionados del proyecto
+├── rules/               # Reglas específicas del proyecto
+└── README.md            # Este archivo
+```
+
+## MCP Servers Configurados
+
+- **codegraph** - Knowledge graph del código (tree-sitter parsed)
+- **shadcn** - shadcn/ui component registry
+- **chrome-devtools** - Chrome DevTools automation
+- **playwright** - Browser automation
+- **context7** - Library documentation
+- **tailwindcss-server** - Tailwind CSS utilities
+
+## Skills Disponibles
+
+Los skills se cargan desde `.codex/skills/`. El inventario real es el contenido
+del directorio (`ls .codex/skills`); la descripción de cada skill está en su
+`SKILL.md`. No mantengas listas duplicadas aquí: `.codex/skills/` es un
+subconjunto sincronizado de `.claude/skills/` vía `just sync-skills`.
+
+## Reglas del Proyecto
+
+Definidas en `.codex/rules/project-rules.md`:
+- Arquitectura backend/frontend
+- Patrones de desarrollo obligatorios (BFF routes)
+- Sistema de diseño (PRODUCT.md, DESIGN.md)
+- Comandos de desarrollo
+- Guías de estilo
+
+## Portabilidad
+
+La configuración versionada debe ser portable:
+
+- No agregar rutas absolutas del usuario.
+- No guardar secrets ni API keys.
+- No guardar estado local de confianza del proyecto.
+- Si una integración requiere una ruta de máquina, configúrala fuera del repo.
+
+## Uso
+
+Codex detecta automáticamente la configuración del proyecto al ejecutarse desde el directorio raíz.

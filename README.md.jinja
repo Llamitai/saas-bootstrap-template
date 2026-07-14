@@ -1,0 +1,193 @@
+# [[ project_name ]]
+
+[[ project_name ]] is a multi-tenant starter for authenticated B2B products. It
+ships the core product surface most SaaS apps need: auth, tenants, members,
+invitations, roles, permissions, profile, tenant settings/avatar, superuser
+onboarding, transactional email scaffolding, asset storage, and Directus as the
+internal admin console.
+
+## Apps
+
+| App | Stack | Default port | Path |
+|:---|:---|:---:|:---|
+| Backend | FastAPI · Python 3.13 · PostgreSQL · Redis · MinIO · Mailpit · Directus | `8200` | [`backend/`](backend/) |
+| Frontend | Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/Base UI | `3000` | [`frontend/`](frontend/) |
+| Docs | React Router 7 + Fumadocs internal documentation site | `4321` | [`docs/`](docs/) |
+
+## Core Surface
+
+- **Auth**: login, logout, refresh, Google OAuth, password reset, and session lookup.
+- **Users / profile**: authenticated user data and profile management.
+- **Tenants**: onboarding, active tenant selection, settings, avatar, and soft delete.
+- **Members / invitations**: tenant membership, invites, acceptance, cancellation, and member profile updates.
+- **Roles / permissions**: default role bootstrap, tenant role management, and permission checks.
+- **Assets**: tenant/member images through local disk or object storage adapters.
+- **Superuser**: internal tenant onboarding flows.
+- **Messaging**: transactional email scaffolding.
+- **Directus**: internal admin console for operational metadata.
+
+## Repository Structure
+
+```text
+[[ project_slug ]]/
+  backend/        FastAPI API and backend services
+  frontend/       Next.js app
+  docs/           Current boilerplate documentation
+  .codex/         Codex project config and skills
+  .claude/        Claude Code project config and skills
+  .opencode/      OpenCode project config and skills
+  .agents/        Shared agent skills
+  just/           just command modules
+  justfile        top-level development commands
+```
+
+Documentation, tests, fixtures, and examples must describe [[ project_name ]] only.
+Keep them aligned with the current core modules listed above.
+
+## Agent Tooling
+
+This repository is intended to be self-sufficient for agent-assisted work with
+Codex, Claude Code, and OpenCode.
+
+- `AGENTS.md` is the shared project instruction source of truth.
+- `.codex/`, `.claude/`, `.opencode/`, and `.agents/` are versioned on purpose.
+  They contain project-specific skills, commands, rules, and MCP wiring.
+- Project configs should stay portable. Do not commit user-specific absolute
+  paths, local trust state, secrets, or machine-only integrations.
+- CodeGraph is available for structural code search through the configured MCP
+  server. Use it for symbols, call graphs, impact checks, and module surveys.
+- Skills are part of the repo contract. Do not ignore skill directories just to
+  reduce search/index noise.
+
+## First run
+
+### Prerequisites
+
+- **Docker** with the Compose plugin (the whole backend runs in containers).
+- **[just](https://github.com/casey/just)** — command runner for every dev task.
+- **Node.js 22** (version pinned in `.nvmrc`).
+- **pnpm 11** — `corepack enable` activates the version pinned in
+  `frontend/package.json`.
+- Optional: **uv** and **lefthook** for the backend pre-commit hooks
+  (`lefthook install`).
+
+### Steps
+
+1. Create your repository from this template (or clone it) and enter it.
+2. Copy the environment files:
+
+   ```bash
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+
+3. Start the backend stack — docker compose brings up the API plus Postgres,
+   Redis, MinIO, Mailpit, and Directus:
+
+   ```bash
+   just backend dev
+   ```
+
+4. In another terminal, apply migrations, seed demo data, and create the
+   MinIO bucket (in that order):
+
+   ```bash
+   just backend migrate
+   just backend seed
+   just backend minio-setup
+   ```
+
+5. Install frontend dependencies and start the frontend:
+
+   ```bash
+   just frontend install
+   just frontend dev
+   ```
+
+6. Log in at `http://localhost:3000` with the seeded owner:
+   `[[ owner_email ]]` / `12345678x`.
+
+### Using this as a template
+
+**Recommended: Copier.** Generate a fully renamed project from the published
+template mirror and receive future boilerplate improvements with
+`copier update`:
+
+```bash
+uvx copier copy --trust gh:Llamitai/[[ project_slug ]]-template my-app
+```
+
+`--trust` is required because the template declares `_tasks` (it copies
+`backend/.env.example` to `backend/.env` and runs `git init` on first copy).
+After generating, regenerate the backend lockfile — the production image
+installs with `uv sync --locked` and fails on the stale one:
+
+```bash
+cd my-app/backend && uv lock
+```
+
+Later, pull newer template releases from inside your project with
+`uvx copier update --trust`.
+
+The mirror is generated on every `v*` tag by
+[`publish-template.yml`](.github/workflows/publish-template.yml) via
+[`scripts/build_template.py`](scripts/build_template.py); branding tokens live
+in [`scripts/branding_tokens.json`](scripts/branding_tokens.json). Never edit
+the mirror by hand.
+
+**Lightweight alternative: GitHub template.**
+
+- On GitHub, enable **Settings → Template repository** so new projects can be
+  created with "Use this template" instead of forking.
+- To rebrand the neutral "[[ project_name ]]" naming, ask your agent to run the
+  [`rename-project`](.claude/skills/rename-project) skill — it renames package
+  metadata, Docker images, docs, UI metadata, and seeds in one pass (no
+  `copier update` afterwards, though).
+- Personalize the copyright line in [`LICENSE`](LICENSE) with your own name or
+  company.
+
+## Quick Start
+
+```bash
+just                 # list commands
+just backend dev     # backend stack: API + Postgres + Redis + MinIO + Mailpit + Directus
+just frontend dev    # Next.js dev server
+just docs dev        # React Router 7 + Fumadocs docs site
+just stop-all        # stop local stacks
+```
+
+Commands are grouped by area:
+
+```bash
+just backend
+just frontend
+just docs
+```
+
+## Database
+
+The backend starts from a single core migration:
+
+[`backend/src/common/database/versions/20260707_000001_initial_[[ python_name ]].py`](backend/src/common/database/versions/20260707_000001_initial_[[ python_name ]].py)
+
+Run migrations with:
+
+```bash
+just backend migrate
+```
+
+## Architecture
+
+- Backend uses Clean Architecture with DDD:
+  `domain -> application -> infrastructure -> presentation`.
+- Frontend uses a feature-first structure:
+  `frontend/src/app -> frontend/src/features -> frontend/src/entities -> frontend/src/shared`.
+- Browser code calls the backend only through same-origin Next.js BFF routes
+  under `/api/...`.
+
+See [`docs/internal/architecture/frontend-architecture.md`](docs/internal/architecture/frontend-architecture.md)
+for the frontend source of truth.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

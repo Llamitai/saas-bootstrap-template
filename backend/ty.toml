@@ -1,0 +1,148 @@
+# ty.toml
+# https://docs.astral.sh/ty/
+# Type checker ultra-rápido de Astral (10x-100x más rápido que mypy)
+
+# ============================================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================================
+[environment]
+# Versión de Python objetivo
+python-version = "3.13"
+
+# Raíz de resolución de módulos: el código importa con prefijo `src.`
+# (`from src.common...`), así que la raíz es backend/, NO backend/src/.
+# Con root=["src"] ty no resuelve NINGÚN import first-party.
+root = ["."]
+
+# Auto-detectar .venv o usar VIRTUAL_ENV
+# python = "/path/to/python"  # Opcional: especificar Python específico
+
+# ============================================================================
+# SOURCE FILES CONFIGURATION
+# ============================================================================
+[src]
+# Archivos a incluir en type checking (config/ es el entrypoint FastAPI)
+include = ["src", "config"]
+
+# Excluir directorios comunes
+exclude = [
+    # Control de versiones
+    ".git",
+    ".hg",
+    ".svn",
+
+    # Caches de Python y entornos virtuales
+    ".mypy_cache",
+    ".pytype",
+    ".ruff_cache",
+    "__pycache__",
+    "__pypackages__",
+    ".venv",
+    "venv",
+    ".nox",
+    ".tox",
+
+    # Artefactos de build
+    "_build",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+
+    # Exclusiones específicas del proyecto
+    "migrations",      # Migraciones Alembic (auto-generadas)
+    "libs",           # Librerías third-party
+    "docs",           # Documentación
+    "data",           # Archivos de datos
+    "htmlcov",        # Reportes de coverage
+    "site",           # MkDocs site
+    "scripts",        # Scripts de utilidad
+    "tests",          # Archivos de test
+    "command.py",     # Archivo CLI command
+
+    # Otros
+    ".direnv",
+    "node_modules",
+]
+
+# Honrar archivos .gitignore y .ignore
+respect-ignore-files = true
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+[analysis]
+# Honrar comentarios type: ignore en código
+respect-type-ignore-comments = true
+
+# ============================================================================
+# TERMINAL OUTPUT CONFIGURATION
+# ============================================================================
+[terminal]
+# Usar formato de output completo con diagnósticos contextuales
+# Opciones: "full" | "concise"
+output-format = "full"
+
+# No salir con error en warnings (solo en errores)
+# Configurar a true en CI/CD para mayor rigurosidad
+error-on-warning = false
+
+# ============================================================================
+# GLOBAL TYPE CHECKING RULES
+# ============================================================================
+[rules]
+# -----------------------------------------------------------------------------
+# Alta señal — ERROR (crashes seguros en runtime; el resto de reglas duras
+# como unresolved-import, missing-argument, invalid-type-form ya son error
+# por defecto)
+# -----------------------------------------------------------------------------
+possibly-unresolved-reference = "error"   # Capturar NameErrors potenciales
+call-non-callable = "error"               # Invocar objetos no-callable
+not-iterable = "error"                    # Iterar sobre tipos no-iterables
+not-subscriptable = "error"               # Subscripting tipos no soportados
+
+# -----------------------------------------------------------------------------
+# Compatibilidad de tipos — ERROR (deuda saldada 2026-07-01: 226 warnings
+# resueltos; las supresiones que quedan son `# ty: ignore[regla]` puntuales
+# y justificadas sobre stubs third-party o magia de frameworks)
+# -----------------------------------------------------------------------------
+invalid-argument-type = "error"
+invalid-assignment = "error"
+invalid-return-type = "error"
+possibly-missing-attribute = "error"
+unresolved-attribute = "error"
+
+# -----------------------------------------------------------------------------
+# Calidad de código — WARN
+# -----------------------------------------------------------------------------
+deprecated = "warn"                       # Marcar uso de APIs obsoletas
+redundant-cast = "warn"                   # Remover casts innecesarios
+unused-ignore-comment = "warn"            # Limpiar supresiones no usadas
+division-by-zero = "warn"                 # Capturar errores matemáticos obvios
+ignore-comment-unknown-rule = "warn"      # Capturar typos en directivas
+
+# ============================================================================
+# PER-FILE OVERRIDES
+# ============================================================================
+
+# -----------------------------------------------------------------------------
+# Database (models/mixins SQLAlchemy) — los stubs de `mapped_column` disparan
+# no-matching-overload masivo (86 sitios medidos) por un límite de ty pre-1.0
+# al ligar el self-type de los overloads genéricos de SQLAlchemy (p.ej.
+# `PostgreSQLUUID(as_uuid=True)`). Es código válido: se silencia hasta que
+# ty 1.0 arregle los stubs. La regla sigue activa fuera de database/.
+# -----------------------------------------------------------------------------
+[[overrides]]
+include = ["**/database/**/*.py"]
+[overrides.rules]
+no-matching-overload = "ignore"
+
+# -----------------------------------------------------------------------------
+# Domain Layer — lógica pura sin magia de frameworks: mantener lo estricto
+# que ya está limpio (0 violaciones medidas)
+# -----------------------------------------------------------------------------
+[[overrides]]
+include = ["**/domain/**/*.py"]
+[overrides.rules]
+possibly-unresolved-reference = "error"
+possibly-missing-attribute = "error"

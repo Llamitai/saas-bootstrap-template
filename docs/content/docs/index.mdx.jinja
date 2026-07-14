@@ -1,0 +1,63 @@
+---
+title: Introducción
+description: Mapa general de la documentación técnica de [[ project_name ]].
+---
+
+<Callout title="En resumen">
+  [[ project_name ]] es una base multi-tenant para productos B2B autenticados: entrega auth, tenants, miembros, invitaciones, roles, permisos, perfil, assets y consola interna para que el producto de negocio se construya encima.
+</Callout>
+
+## Mapa general
+
+La documentación vive en cuatro entradas iniciales:
+
+<Cards>
+  <Card title="Conceptos" href="/docs/conceptos">
+    Glosario de términos de dominio y responsabilidades principales.
+  </Card>
+  <Card title="Arquitectura" href="/docs/arquitectura">
+    Organización backend, frontend, Directus y límites entre módulos.
+  </Card>
+  <Card title="Operación" href="/docs/operacion">
+    Configuración local, build, despliegue y rutinas de mantenimiento.
+  </Card>
+</Cards>
+
+## Superficie actual
+
+El boilerplate cubre el núcleo operativo reusable de un SaaS B2B:
+
+<TypeTable
+  type={{
+    auth: {
+      description: "Login, refresh, logout y sesión de usuario.",
+      type: "backend + frontend BFF",
+    },
+    tenants: {
+      description: "Contexto tenant, settings, avatar, miembros e invitaciones.",
+      type: "bounded context",
+    },
+    roles: {
+      description: "Roles tenant, permisos y asignaciones por miembro.",
+      type: "authorization model",
+    },
+    assets: {
+      description: "Adaptadores de storage local u objeto para archivos.",
+      type: "infrastructure adapter",
+    },
+  }}
+/>
+
+## Flujo de lectura
+
+```mermaid
+flowchart LR
+  intro[Introducción] --> conceptos[Conceptos]
+  conceptos --> arquitectura[Arquitectura]
+  arquitectura --> operacion[Operación]
+  operacion --> codigo[Código y cambios]
+```
+
+## Convención editorial
+
+Todo contenido público de esta app va en `docs/content/docs`. Los nombres de archivos y carpetas usan `kebab-case`, el título vive en frontmatter y el cuerpo empieza con un `Callout` de resumen.

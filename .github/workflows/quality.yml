@@ -1,0 +1,135 @@
+name: Quality
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  skills:
+    name: Agent skills
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify skill copies are in sync
+        run: python3 scripts/sync_skills.py --check
+
+  template:
+    name: Template round-trip
+    # Canonical repo only: the workflow travels into generated projects, but
+    # the template scaffolding (scripts/build_template.py) deliberately
+    # doesn't — without this guard their first pipeline would be red forever.
+    if: github.repository == 'Llamitai/wise'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      # Fidelity (round-trip == repo) and anti-drift (no branding leftovers in
+      # a non-default render). Cheap; keeps scripts/branding_tokens.json honest
+      # long before a release triggers publish-template.yml.
+      - name: Build template and validate
+        run: python3 scripts/build_template.py --check
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Type-check (ty)
+        run: uv run ty check
+
+      - name: Architecture boundaries (import-linter)
+        run: uv run lint-imports
+        env:
+          PYTHONPATH: .
+
+      - name: Unit tests (pytest)
+        env:
+          POSTGRES_HOST: 127.0.0.1
+        run: uv run pytest -m "not api"
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check (tsc)
+        run: pnpm type-check
+
+      - name: Lint & format (biome)
+        run: pnpm check
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: Architecture boundaries
+        run: pnpm lint:boundaries
+
+      - name: Build (next)
+        run: pnpm build

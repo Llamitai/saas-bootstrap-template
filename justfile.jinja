@@ -1,0 +1,62 @@
+# [[ project_name ]] Development Commands
+# Ports: backend=8200, frontend=3000, docs=4321
+#
+# Commands are grouped into modules. Run them as `just <area> <command>`:
+#     just backend dev          just frontend dev          just docs dev
+#     just backend test unit    just backend new-migration "add table"
+#     just verify               # full cross-stack quality gate
+#
+# Run `just <area>` (e.g. `just backend`) to list everything in that area.
+
+set dotenv-load := false
+
+mod backend "just/backend.just"
+mod frontend "just/frontend.just"
+mod docs "just/docs.just"
+
+# Optional: template tooling exists only in the canonical boilerplate repo
+# (scripts/build_template.py strips it from generated projects).
+mod? template "just/template.just"
+
+# List available commands
+default:
+    @just --list
+
+# ─── ALL PROJECTS ───────────────────────────────────────────────
+
+# Start backend + frontend + docs together (logs interleaved)
+dev-all:
+    just backend dev & just frontend dev & just docs dev & wait
+
+# Build backend + frontend + docs
+build-all:
+    just backend build
+    just frontend build
+    just docs build
+
+# Run the full cross-stack quality gate (backend quality + tests, frontend verify)
+verify:
+    just backend quality
+    just backend test
+    just frontend verify
+
+# ─── AGENT SKILLS ───────────────────────────────────────────────
+
+# Sync canonical .claude/skills into .codex/skills and .opencode/skills
+sync-skills *args:
+    python3 scripts/sync_skills.py {{args}}
+
+# ─── DOCKER (cross-cutting) ─────────────────────────────────────
+
+# Stop every container from every stack
+stop-all:
+    cd backend && docker compose down 2>/dev/null; \
+    echo "All containers stopped"
+
+# Prune stopped containers and dangling images
+clean:
+    docker system prune -f
+
+# Show running containers (name / ports / status)
+ps:
+    docker ps --format "table {{{{.Names}}}}\t{{{{.Ports}}}}\t{{{{.Status}}}}"

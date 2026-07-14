@@ -1,0 +1,66 @@
+# GitLab CI/CD — mirror of .github/workflows/*
+# ---------------------------------------------------------------------------
+# This pipeline replicates the GitHub Actions setup:
+#   quality.yml      -> .gitlab/ci/quality.gitlab-ci.yml   (skills + backend + frontend)
+#   api-tests.yml    -> .gitlab/ci/api-tests.gitlab-ci.yml (api suite + failure notify)
+#   build_backend +  -> .gitlab/ci/build.gitlab-ci.yml     (build + Portainer deploy)
+#   build_frontend
+#   promote.yml      -> .gitlab/ci/promote.gitlab-ci.yml   (dev -> main)
+#   rollback.yml     -> .gitlab/ci/rollback.gitlab-ci.yml  (redeploy an existing tag)
+#
+# Registry: GitLab Container Registry ($CI_REGISTRY_IMAGE), auth via $CI_JOB_TOKEN.
+# Deploy:   Portainer REST API (see .gitlab/ci/portainer-redeploy.sh).
+#
+# THINGS THAT DO NOT MAP 1:1 FROM GITHUB ACTIONS
+# ----------------------------------------------
+# * Nightly api-tests cron: GitHub `schedule:` lives in the file; in GitLab you
+#   create a Pipeline Schedule in the UI (Build > Pipeline schedules, cron
+#   "0 3 * * *"). Jobs already gate on `$CI_PIPELINE_SOURCE == "schedule"`.
+# * `workflow_dispatch` typed inputs (rollback/promote): GitLab has no typed
+#   dropdown. Run them from "Build > Pipelines > Run pipeline" passing variables
+#   (documented in each file). Jobs then appear as manual.
+# * Docker builds need a runner that allows Docker-in-Docker (privileged) — the
+#   build/api-test jobs use the docker:dind service.
+#
+# REQUIRED CI/CD VARIABLES (Settings > CI/CD > Variables) — mark secrets Masked,
+# and scope deploy secrets to the Production/Development environments:
+#   Portainer:  PORTAINER_URL, PORTAINER_TOKEN
+#   Infisical:  INFISICAL_SECRET_ENV, INFISICAL_API_URL,
+#               INFISICAL_MACHINE_CLIENT_ID, INFISICAL_MACHINE_CLIENT_SECRET,
+#               BACKEND_PROJECT_ID, FRONTEND_PROJECT_ID
+#   Stack names: BACKEND_DEPLOYMENT_SERVICE, FRONTEND_DEPLOYMENT_SERVICE
+#   Admin:      ADMIN_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_DB_HOST,
+#               ADMIN_DB_DATABASE, ADMIN_DB_USER, ADMIN_DB_PASSWORD,
+#               ADMIN_PUBLIC_URL
+#   Notify:     ALERT_API_TOKEN (project token, api scope), ALERT_ASSIGNEE_ID
+#               (numeric user id), SLACK_WEBHOOK (optional)
+#   Promote:    GITLAB_PUSH_TOKEN (project token, write_repository)
+# ---------------------------------------------------------------------------
+
+stages:
+  - quality
+  - test
+  - build
+  - deploy
+  - notify
+  - promote
+
+default:
+  interruptible: true
+
+# Run one pipeline per change: MRs, branch pushes, tags, schedules, and manual
+# "Run pipeline". Skip the duplicate branch pipeline when an MR is open.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+include:
+  - local: .gitlab/ci/quality.gitlab-ci.yml
+  - local: .gitlab/ci/api-tests.gitlab-ci.yml
+  - local: .gitlab/ci/build.gitlab-ci.yml
+  - local: .gitlab/ci/promote.gitlab-ci.yml
+  - local: .gitlab/ci/rollback.gitlab-ci.yml

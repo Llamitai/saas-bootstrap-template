@@ -1,0 +1,39 @@
+# [[ project_name ]] Backend
+
+API async (FastAPI) para una plantilla SaaS multi-tenant. Incluye autenticación,
+perfil, tenants, invitaciones, roles/permisos, correo, assets y superuser.
+Puerto `8200`.
+
+## Stack
+Python 3.13 · FastAPI · SQLAlchemy 2 async (asyncpg) · Alembic · Redis + SAQ (jobs) ·
+Postgres · MinIO/S3 para assets.
+Lint/format con `ruff`, tipos con `ty`.
+
+## Comandos (`just backend <cmd>`)
+```bash
+just backend dev               # stack local (API + Postgres + Redis + Directus)
+just backend bash              # shell en el contenedor api
+just backend test [marker]     # marker: unit (def) | single | api | all
+just backend quality           # format + lint + typecheck
+just backend migrate                 # alembic upgrade head
+just backend new-migration "msg"     # nueva migración autogenerada
+just backend seed                    # tenants/usuarios/roles base
+```
+`just backend` lista todo. OpenAPI en `/api/py/docs`.
+Usuarios sembrados: contraseña `12345678x`, login `[[ owner_email ]]`.
+
+## Arquitectura
+Clean Architecture + DDD. Cada módulo en `src/<mod>/` se divide en
+`domain/ → application/ → infrastructure/ → presentation/`.
+
+Módulos: `auth`, `users`, `profile`, `tenants`, `messaging`, `assets`, `admin`
+y `common` (infra compartida: database/models, settings, middlewares).
+
+## Entry points
+- API: `config/main.py` (`app`) · CLI fixtures: `command.py`
+- Migraciones: `src/common/database/versions/` · Seeds: `scripts/seed_*.py`
+- Config local: copia `.env.example` → `.env`
+
+## Docs profundas
+En [`../docs/internal/`](../docs/internal): `backend/api-reference.md`,
+`architecture/erd-diagram.md`, `backend/debugging.md`, `adr/`.

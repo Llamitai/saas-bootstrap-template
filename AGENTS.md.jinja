@@ -1,0 +1,180 @@
+# AGENTS.md
+
+## Project Overview
+
+[[ project_name ]] is a multi-tenant starter for authenticated B2B products. The
+current project surface is auth, users/profile, tenants, tenant settings/avatar,
+members, invitations, roles, permissions, assets, superuser onboarding,
+transactional messaging scaffolding, and Directus as the internal admin console.
+
+Documentation, tests, fixtures, and examples must describe [[ project_name ]] only
+and stay aligned with the current core modules.
+
+## Design Context
+
+Frontend design work is governed by two root files maintained via the `/impeccable` skill:
+
+- **`PRODUCT.md`** (strategic): register, users, purpose, brand personality, anti-references, design principles.
+- **`DESIGN.md`** (visual): tokens, typography, components, Do's/Don'ts — Stitch DESIGN.md format, with a machine-readable mirror + drop-in component snippets in `.impeccable/design.json`.
+
+Quick reference:
+- **Register:** `product` (authenticated app UI; no marketing surface).
+- **Personality:** sharp, trustworthy, approachable. North Star: *"The Inspection Bench."*
+- **Visual system:** teal primary `oklch(0.59 0.095 180.54)` on cool-gray neutrals, Figtree + Geist Mono, 0.75rem base radius, near-flat (hairline rings + whisper shadows). Live tokens in `frontend/src/app/globals.css`.
+- **Anti-references:** generic SaaS templates, the trendy AI-app look, legacy enterprise clutter.
+
+Before building or restyling UI, read `PRODUCT.md` and `DESIGN.md` first.
+
+## Documentación de decisiones y módulos
+
+Las decisiones nuevas deben documentarse como ADRs cuando cambien límites de
+módulo, contratos, persistencia, seguridad o flujos core. La documentación debe
+describir únicamente este boilerplate; material ajeno al core actual se elimina
+en vez de archivarse dentro del repositorio.
+
+## Repository Structure
+
+```
+[[ project_slug ]]/
+  backend/        # FastAPI API (Python 3.13, async SQLAlchemy, PostgreSQL)
+  frontend/       # Next.js app (TypeScript, Tailwind CSS v4, shadcn + Base UI)
+  docs/           # Current boilerplate documentation
+  just/           # just command modules
+  justfile        # Top-level development commands
+```
+
+## Backend Architecture
+
+Clean Architecture with DDD. Each module follows: `domain/ → application/ → infrastructure/ → presentation/`
+
+**Modules:** admin, assets, auth, common, messaging, profile, tenants, users
+
+### Module Shapes
+
+Not every module has all four layers. When creating a new module, copy the
+full four-layer exemplars:
+
+- **auth, tenants, users** — full `domain/application/infrastructure/presentation`
+  modules; the exemplars to copy for new modules.
+- **admin, profile** — thin presentation-only facades (routers/endpoints only).
+- **assets** — `domain` + `infrastructure` storage adapter (no HTTP surface).
+- **messaging** — `application` + `infrastructure` scaffolding, plus a thin
+  `domain/services` email interface and `templates/`; no presentation layer.
+- **common** — shared kernel (settings, database, base classes, DI).
+
+**CRITICAL:** all SQLAlchemy ORM models live centrally in
+`backend/src/common/database/models/` — NOT per-module. Domain entities live in
+each module's `domain/`; persistence models always go in `common`.
+
+Domain models for concepts shared across modules (user, tenant, tenant_user,
+roles, invitations) also live centrally, in `backend/src/common/domain/models/`;
+feature modules own their repositories, use cases, and presentation. The layer
+direction inside every module is enforced by import-linter
+(`just backend lint-imports`, part of `just backend quality` and CI).
+
+### Key Patterns
+- **Use cases** are dataclasses implementing `UseCase` with an `execute()` method
+- **Repositories** are abstract classes in `domain/`, implemented as SQL repos in `infrastructure/`
+- **Presenters** convert domain entities to API response dicts
+- **Routers** use `add_api_route()` to register endpoints
+- **Exceptions** extend `DomainError` with code, message, and status_code
+- **Database** uses async SQLAlchemy with Alembic migrations
+- **Assets** use storage adapters for local/object storage
+- **Directus** remains available as the internal admin console
+
+### Common Commands
+
+```bash
+# Development (commands are grouped by area: backend / frontend / docs)
+just backend dev              # Start API + Postgres + Redis + MinIO + Mailpit + Directus
+just frontend dev             # Start frontend dev server
+just docs dev                 # Start React Router 7 + Fumadocs docs dev server
+just backend migrate          # Run DB migrations
+just backend new-migration "name"  # Create new migration
+just backend                  # List all backend commands
+
+# Docker
+just stop-all                 # Stop all containers
+just backend build-prod       # Build production backend image
+```
+
+### Verify Your Changes
+
+```bash
+just backend test             # Backend tests; marker: unit (default) | single | api | all
+just backend quality          # Backend format + lint + typecheck
+pnpm -C frontend verify       # Frontend type-check + biome + vitest + architecture boundaries + build
+lefthook install              # Optional: enable the pre-commit hooks from lefthook.yml
+```
+
+Backend commands run through docker compose and need `backend/.env`; the just
+recipes create it from `backend/.env.example` automatically on first run.
+
+### Backend Entry Points
+- API: `backend/config/main.py` → port 8200
+- Async task worker: `backend/config/tasks.py` via SAQ
+- Scripts: `backend/scripts/seed_users.py`, `backend/scripts/bootstrap_tenant_roles.py`
+
+### Database
+- PostgreSQL
+- Migrations: `backend/src/common/database/versions/`
+- Initial migration: `20260707_000001_initial_[[ python_name ]].py`
+
+## Frontend
+
+The frontend architecture source of truth is
+`docs/internal/architecture/frontend-architecture.md`.
+
+Before modifying `frontend/`, read that document and follow it over older
+layer-based guidance. The target structure is feature-first:
+
+```text
+frontend/src/app -> frontend/src/features -> frontend/src/entities -> frontend/src/shared
+```
+
+Do not reintroduce the retired frontend architecture
+`domain/application/infrastructure/presentation`. Browser code must call the
+backend only through same-origin Next.js BFF routes (`/api/...`) using the
+HTTP helpers described in the architecture document.
+
+## Agent Skills
+
+`.claude/skills/` is the canonical skills directory. `.codex/skills/`,
+`.opencode/skills/`, and `.agents/skills/` are synced subsets of it — never
+edit those copies directly. Fix drift with `just sync-skills`; drift fails the
+pre-commit hook and CI via `python3 scripts/sync_skills.py --check`.
+
+## Copier Template
+
+*Canonical boilerplate repo only — generated projects do not include this
+machinery (nor this concern).*
+
+The public Copier template (`Llamitai/[[ project_slug ]]-template`) is 100%
+generated from this repo by `scripts/build_template.py` — never edited by
+hand. `scripts/branding_tokens.json` is the single source for branding tokens
+and exclusions, shared with the `rename-project` skill; when you introduce new
+branding, add it there (the `template` job in CI fails on leftovers
+otherwise). `template/copier.yml` holds the questionnaire;
+`.github/workflows/publish-template.yml` publishes the mirror on `v*` tags.
+Validate locally with `just template check`. One-time setup and release
+runbook: `docs/internal/template-publishing.md`.
+
+## Optional Local Tooling
+
+Agent configs reference these local binaries; each is optional and its absence
+is non-fatal:
+
+- **codegraph** — MCP server exposing a code knowledge graph; needs a one-time
+  `codegraph init` per project.
+- **pyright-langserver** — Python language server used by OpenCode LSP.
+- **typescript-language-server** — TypeScript language server used by OpenCode LSP.
+
+## Style Guidelines
+- Backend: Python, snake_case, type hints, async/await
+- Frontend: TypeScript, camelCase, functional components
+- API responses use camelCase (presenters convert from snake_case)
+- Tests and fixtures must use [[ project_name ]] examples only
+- Commit messages in English
+- Language policy: agent/instruction files and code are in English;
+  `docs/content/` and `docs/internal/` are authored in Spanish; module READMEs
+  (`backend/`, `frontend/`, `docs/internal/`) are Spanish by convention

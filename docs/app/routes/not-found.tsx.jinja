@@ -1,0 +1,22 @@
+import { Link } from "react-router";
+
+export function meta() {
+  return [{ title: "No encontrado | [[ project_name ]] Docs" }];
+}
+
+export default function NotFound() {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6">
+      <p className="text-sm font-medium text-fd-muted-foreground">
+        [[ project_name ]] Docs
+      </p>
+      <h1 className="mt-3 text-3xl font-semibold">Página no encontrada</h1>
+      <p className="mt-4 text-fd-muted-foreground">
+        La ruta no existe dentro de la documentación técnica.
+      </p>
+      <Link className="mt-6 text-sm font-medium text-fd-primary" to="/docs">
+        Volver a la documentación
+      </Link>
+    </main>
+  );
+}

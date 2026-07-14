@@ -1,0 +1,111 @@
+name: API Tests
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up just
+        uses: extractions/setup-just@v3
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Create backend .env
+        run: cp backend/.env.example backend/.env
+
+      - name: Run API test suite
+        run: just backend test api
+
+  notify:
+    name: Notify on failure
+    needs: api
+    if: ${{ failure() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update failure issue (also emails the assigned GitHub user)
+        uses: actions/github-script@v7
+        env:
+          ALERT_USER: ${{ vars.ALERT_GITHUB_USER }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const assignee = process.env.ALERT_USER || owner;
+            const label = 'api-tests-failure';
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            // Ensure the dedup label exists (ignore "already exists").
+            try {
+              await github.rest.issues.createLabel({
+                owner, repo, name: label, color: 'd73a4a',
+                description: 'Automated: API test suite is failing',
+              });
+            } catch (e) { /* label already exists */ }
+
+            const existing = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: label,
+            });
+
+            if (existing.data.length > 0) {
+              const number = existing.data[0].number;
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: number,
+                body: `Still failing on a new run (\`${context.eventName}\`): ${runUrl}`,
+              });
+              core.info(`Commented on existing issue #${number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner, repo,
+                title: 'API test suite is failing',
+                labels: [label],
+                assignees: [assignee],
+                body: [
+                  'The **API test suite** failed outside of a pull request.',
+                  '',
+                  `- Run: ${runUrl}`,
+                  `- Trigger: \`${context.eventName}\``,
+                  `- Commit: \`${context.sha}\``,
+                  '',
+                  `cc @${assignee}`,
+                ].join('\n'),
+              });
+              core.info(`Opened issue #${created.data.number}`);
+            }
+
+      - name: Notify Slack (only if webhook is configured)
+        if: ${{ !cancelled() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "SLACK_WEBHOOK not configured — skipping Slack notification."
+            exit 0
+          fi
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":rotating_light: API tests failed on ${GITHUB_REPOSITORY} — ${RUN_URL} (trigger: ${GITHUB_EVENT_NAME})\"}" \
+            "$SLACK_WEBHOOK"

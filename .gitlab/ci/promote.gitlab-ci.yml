@@ -1,0 +1,43 @@
+# Mirror of .github/workflows/promote.yml
+# Promote dev -> main. GitLab has no workflow_dispatch inputs, so run it from
+# "Build > Pipelines > Run pipeline" with variables:
+#   PROMOTE=true            (required, gates the job on)
+#   PROMOTE_STRATEGY=merge  (merge = ff-only, reset = hard reset main to dev)
+#
+# Requires GITLAB_PUSH_TOKEN: a project/group access token with write_repository
+# and permission to push to the protected `main` branch (add it as an allowed
+# pusher, or use it via a token that bypasses protection).
+
+promote:
+  stage: promote
+  image: alpine:3.20
+  interruptible: false
+  variables:
+    PROMOTE_STRATEGY: merge
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $PROMOTE == "true"
+      when: manual
+      allow_failure: false
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
+      git config user.name "gitlab-ci"
+      git config user.email "gitlab-ci@$CI_SERVER_HOST"
+      git remote set-url origin "https://oauth2:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      git fetch origin --prune
+
+      if [ "$PROMOTE_STRATEGY" = "merge" ]; then
+        git checkout -B main origin/main
+        git merge --ff-only origin/dev
+        git push origin main
+      elif [ "$PROMOTE_STRATEGY" = "reset" ]; then
+        echo "WARNING: resetting main to origin/dev — main history will be overwritten"
+        git checkout -B main origin/main
+        git reset --hard origin/dev
+        git push --force-with-lease origin main
+      else
+        echo "Unknown PROMOTE_STRATEGY: $PROMOTE_STRATEGY (expected merge|reset)" >&2
+        exit 1
+      fi

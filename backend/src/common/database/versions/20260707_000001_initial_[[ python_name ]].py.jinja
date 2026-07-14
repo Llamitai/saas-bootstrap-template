@@ -1,0 +1,195 @@
+"""initial [[ python_name ]]
+
+Revision ID: 20260707_000001
+Revises:
+Create Date: 2026-07-07
+"""
+
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects import postgresql
+
+revision: str = "20260707_000001"
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def _timestamps() -> tuple[sa.Column, sa.Column]:
+    return (
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    )
+
+
+def _uuid_pk() -> sa.Column:
+    return sa.Column("uuid", sa.UUID(), nullable=False)
+
+
+def upgrade() -> None:
+    op.create_table(
+        "email_addresses",
+        _uuid_pk(),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("email", sa.String(length=254), nullable=False),
+        sa.Column("is_verified", sa.Boolean(), nullable=False),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("email"),
+    )
+    op.create_index(op.f("ix_email_addresses_email"), "email_addresses", ["email"], unique=True)
+
+    op.create_table(
+        "phone_numbers",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("iso_code", sa.String(length=3), nullable=False),
+        sa.Column("dial_code", sa.SmallInteger(), nullable=False),
+        sa.Column("phone_number", sa.String(length=20), nullable=False),
+        sa.Column("prefix", sa.String(length=20), nullable=True),
+        sa.Column("is_verified", sa.Boolean(), nullable=False),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("dial_code", "phone_number", name="uq_phone_numbers_dial_code_phone_number"),
+    )
+    op.create_index(op.f("ix_phone_numbers_dial_code"), "phone_numbers", ["dial_code"], unique=False)
+    op.create_index(op.f("ix_phone_numbers_phone_number"), "phone_numbers", ["phone_number"], unique=False)
+
+    op.create_table(
+        "users",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("first_name", sa.String(length=150), nullable=True),
+        sa.Column("last_name", sa.String(length=150), nullable=True),
+        sa.Column("username", sa.String(length=150), nullable=False),
+        sa.Column("password", sa.String(length=128), nullable=True, comment="Hashed password"),
+        sa.Column("email_address_id", sa.UUID(), nullable=True),
+        sa.Column("phone_number_id", sa.UUID(), nullable=True),
+        sa.Column("current_tenant_id", sa.UUID(), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("is_superuser", sa.Boolean(), nullable=False),
+        sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["email_address_id"], ["email_addresses.uuid"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["phone_number_id"], ["phone_numbers.uuid"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("email_address_id", name="uq_users_email_address_id"),
+        sa.UniqueConstraint("phone_number_id", name="uq_users_phone_number_id"),
+        sa.UniqueConstraint("username"),
+    )
+    op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
+
+    op.create_table(
+        "tenants",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("slug", sa.String(length=50), nullable=False),
+        sa.Column("status", sa.String(length=25), nullable=False, comment="Status"),
+        sa.Column("time_zone", sa.String(length=50), nullable=False),
+        sa.Column("country_code", sa.String(length=25), nullable=False),
+        sa.Column("currency_code", sa.String(length=3), nullable=False),
+        sa.Column("logo_url", sa.String(length=500), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("owner_id", sa.UUID(), nullable=True),
+        sa.ForeignKeyConstraint(["owner_id"], ["users.uuid"], ondelete="SET NULL", use_alter=True),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("slug"),
+    )
+    op.create_index(op.f("ix_tenants_is_deleted"), "tenants", ["is_deleted"], unique=False)
+    op.create_index(op.f("ix_tenants_slug"), "tenants", ["slug"], unique=True)
+    op.create_foreign_key(
+        "fk_current_tenant_id",
+        "users",
+        "tenants",
+        ["current_tenant_id"],
+        ["uuid"],
+        ondelete="SET NULL",
+        deferrable=True,
+        initially="DEFERRED",
+    )
+
+    op.create_table(
+        "tenant_roles",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("tenant_id", sa.UUID(), nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("slug", sa.String(length=50), nullable=False),
+        sa.Column("status", sa.String(length=25), nullable=False, comment="Status"),
+        sa.Column("icon_url", sa.String(length=255), nullable=True),
+        sa.Column("permissions", postgresql.JSONB(astext_type=sa.Text()), server_default="[]", nullable=False),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.uuid"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("tenant_id", "slug", name="uq_tenant_role_tenant_slug"),
+    )
+    op.create_index(op.f("ix_tenant_roles_slug"), "tenant_roles", ["slug"], unique=False)
+
+    op.create_table(
+        "tenant_users",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("tenant_id", sa.UUID(), nullable=False),
+        sa.Column("first_name", sa.String(length=150), nullable=True),
+        sa.Column("last_name", sa.String(length=150), nullable=True),
+        sa.Column("photo", sa.String(length=500), nullable=True),
+        sa.Column("is_owner", sa.Boolean(), nullable=False),
+        sa.Column("is_support", sa.Boolean(), nullable=True),
+        sa.Column("status", sa.String(length=25), nullable=False, comment="Status"),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("tenant_role_id", sa.UUID(), nullable=True),
+        sa.Column("permissions", postgresql.JSONB(astext_type=sa.Text()), server_default="[]", nullable=True),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.uuid"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_role_id"], ["tenant_roles.uuid"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["user_id"], ["users.uuid"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("user_id", "tenant_id", name="uq_tenant_user_id"),
+    )
+
+    op.create_table(
+        "tenant_user_invitations",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("tenant_id", sa.UUID(), nullable=False),
+        sa.Column("email", sa.String(length=320), nullable=False),
+        sa.Column("tenant_role_id", sa.UUID(), nullable=True),
+        sa.Column("token", sa.String(length=128), nullable=False),
+        sa.Column("status", sa.String(length=25), server_default="PENDING", nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(), nullable=True),
+        sa.Column("requires_password", sa.Boolean(), server_default=sa.text("true"), nullable=False),
+        sa.ForeignKeyConstraint(["created_by_id"], ["users.uuid"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.uuid"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_role_id"], ["tenant_roles.uuid"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("uuid"),
+        sa.UniqueConstraint("token"),
+    )
+    op.create_index("ix_tenant_user_invitations_tenant_id", "tenant_user_invitations", ["tenant_id"], unique=False)
+    op.create_index(
+        "uq_tenant_user_invitations_pending_email",
+        "tenant_user_invitations",
+        ["tenant_id", "email"],
+        unique=True,
+        postgresql_where=sa.text("status = 'PENDING'"),
+    )
+
+
+def downgrade() -> None:
+    op.drop_index("uq_tenant_user_invitations_pending_email", table_name="tenant_user_invitations")
+    op.drop_index("ix_tenant_user_invitations_tenant_id", table_name="tenant_user_invitations")
+    op.drop_table("tenant_user_invitations")
+    op.drop_table("tenant_users")
+    op.drop_index(op.f("ix_tenant_roles_slug"), table_name="tenant_roles")
+    op.drop_table("tenant_roles")
+    op.drop_constraint("fk_current_tenant_id", "users", type_="foreignkey")
+    op.drop_index(op.f("ix_tenants_slug"), table_name="tenants")
+    op.drop_index(op.f("ix_tenants_is_deleted"), table_name="tenants")
+    op.drop_table("tenants")
+    op.drop_index(op.f("ix_users_username"), table_name="users")
+    op.drop_table("users")
+    op.drop_index(op.f("ix_phone_numbers_phone_number"), table_name="phone_numbers")
+    op.drop_index(op.f("ix_phone_numbers_dial_code"), table_name="phone_numbers")
+    op.drop_table("phone_numbers")
+    op.drop_index(op.f("ix_email_addresses_email"), table_name="email_addresses")
+    op.drop_table("email_addresses")

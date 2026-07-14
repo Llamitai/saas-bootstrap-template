@@ -1,0 +1,41 @@
+# Product
+
+## Users
+
+[[ project_name ]] sirve como punto de partida para equipos que necesitan lanzar una
+aplicación B2B multi-tenant sin reconstruir la base operativa:
+
+- **Tenant admins** gestionan miembros, invitaciones, roles, permisos y settings.
+- **End users** administran su perfil y acceden a la aplicación según permisos.
+- **Superusers** operan controles internos de administración.
+
+## Product Purpose
+
+La plantilla entrega el núcleo reusable de un SaaS: autenticación, autorización,
+tenancy, configuración básica y mensajería transaccional. El producto de
+dominio se construye encima de estos módulos, no dentro de ellos.
+
+Success looks like: un nuevo producto puede agregar su primer módulo de negocio
+sin tocar auth, roles, invitaciones, emails ni el app shell.
+
+## Brand Personality
+
+Tres palabras: **sharp, trustworthy, approachable.**
+
+- **Sharp & efficient** — pantallas densas cuando ayuda, navegación predecible y acciones claras.
+- **Trustworthy & rigorous** — permisos, auditoría y estados visibles; nada crítico queda implícito.
+- **Approachable & clear** — lenguaje simple para admins no técnicos.
+
+## Anti-references
+
+- **Generic SaaS / admin-kit templates** — card grids sin jerarquía ni intención.
+- **The trendy AI-app look** — gradientes morados, glassmorphism y decoración sin función.
+- **Legacy enterprise clutter** — exceso de chrome, toolbars ruidosos y baja legibilidad.
+
+## Design Principles
+
+1. **Operational first.** La primera pantalla útil debe permitir trabajar, no vender el producto.
+2. **Permissions are product.** Roles, scopes, estados de invitación y errores de acceso deben ser claros.
+3. **Tenant context is always visible.** El usuario debe saber en qué tenant está operando.
+4. **Small core, clean extension points.** Los módulos de negocio se agregan como features aisladas.
+5. **Quiet confidence.** Visualmente sobrio, rápido de escanear y consistente.

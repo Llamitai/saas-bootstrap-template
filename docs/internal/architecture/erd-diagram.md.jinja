@@ -1,0 +1,79 @@
+# ERD core
+
+Fuente de verdad: `backend/src/common/database/models/**` y la migración inicial
+`backend/src/common/database/versions/20260707_000001_initial_[[ python_name ]].py`.
+
+```mermaid
+erDiagram
+  users ||--o| email_addresses : email
+  users ||--o| phone_numbers : phone
+  users }o--o| tenants : current_tenant
+  tenants ||--o{ tenant_roles : roles
+  tenants ||--o{ tenant_users : members
+  tenants ||--o{ tenant_user_invitations : invitations
+  tenant_roles ||--o{ tenant_users : assigned
+  tenant_roles ||--o{ tenant_user_invitations : invited_as
+  users ||--o{ tenant_users : membership
+  users ||--o{ tenant_user_invitations : created_by
+
+  users {
+    uuid uuid PK
+    string username
+    string password
+    string first_name
+    string last_name
+    uuid email_address_id FK
+    uuid phone_number_id FK
+    uuid current_tenant_id FK
+    bool is_active
+    bool is_superuser
+  }
+
+  tenants {
+    uuid uuid PK
+    uuid owner_id FK
+    string name
+    string slug
+    string status
+    string time_zone
+    string country_code
+    string currency_code
+    string logo_url
+    bool is_deleted
+  }
+
+  tenant_roles {
+    uuid uuid PK
+    uuid tenant_id FK
+    string name
+    string slug
+    string status
+    jsonb permissions
+  }
+
+  tenant_users {
+    uuid uuid PK
+    uuid tenant_id FK
+    uuid user_id FK
+    uuid tenant_role_id FK
+    string first_name
+    string last_name
+    string photo
+    bool is_owner
+    bool is_support
+    string status
+    jsonb permissions
+  }
+
+  tenant_user_invitations {
+    uuid uuid PK
+    uuid tenant_id FK
+    string email
+    uuid tenant_role_id FK
+    string token
+    string status
+    timestamp expires_at
+    timestamp accepted_at
+    uuid created_by_id FK
+  }
+```

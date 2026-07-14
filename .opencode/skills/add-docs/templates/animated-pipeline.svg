@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 180" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">
+  <!-- A reusable, SMIL-animated pipeline: a token travels left→right through five
+       phase nodes that pulse in sequence as it passes. Runs inside an <img>.
+       Relabel the <text> nodes; keep the begin offsets staggered across `dur`. -->
+  <rect width="680" height="180" fill="#f8fafc"/>
+
+  <!-- baseline rail -->
+  <line x1="60" y1="100" x2="620" y2="100" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- phase node: PULSE staggered with begin -->
+  <g>
+    <rect x="20" y="78" width="80" height="44" rx="6" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5">
+      <animate attributeName="fill-opacity" values="0.35;1;0.35" dur="5s" begin="0s" repeatCount="indefinite"/>
+    </rect>
+    <text x="60" y="104" text-anchor="middle" fill="#0f172a">Phase 1</text>
+  </g>
+  <g>
+    <rect x="160" y="78" width="80" height="44" rx="6" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5">
+      <animate attributeName="fill-opacity" values="0.35;1;0.35" dur="5s" begin="1s" repeatCount="indefinite"/>
+    </rect>
+    <text x="200" y="104" text-anchor="middle" fill="#0f172a">Phase 2</text>
+  </g>
+  <g>
+    <rect x="300" y="78" width="80" height="44" rx="6" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5">
+      <animate attributeName="fill-opacity" values="0.35;1;0.35" dur="5s" begin="2s" repeatCount="indefinite"/>
+    </rect>
+    <text x="340" y="104" text-anchor="middle" fill="#0f172a">Phase 3</text>
+  </g>
+  <g>
+    <rect x="440" y="78" width="80" height="44" rx="6" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5">
+      <animate attributeName="fill-opacity" values="0.35;1;0.35" dur="5s" begin="3s" repeatCount="indefinite"/>
+    </rect>
+    <text x="480" y="104" text-anchor="middle" fill="#0f172a">Phase 4</text>
+  </g>
+  <g>
+    <rect x="580" y="78" width="80" height="44" rx="6" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5">
+      <animate attributeName="fill-opacity" values="0.35;1;0.35" dur="5s" begin="4s" repeatCount="indefinite"/>
+    </rect>
+    <text x="620" y="104" text-anchor="middle" fill="#0f172a">Phase 5</text>
+  </g>
+
+  <!-- traveling token -->
+  <circle r="8" fill="#0d9488">
+    <animateMotion dur="5s" repeatCount="indefinite" path="M60,100 L620,100"/>
+    <animate attributeName="r" values="8;11;8" dur="1s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="340" y="160" text-anchor="middle" fill="#475569">one item moving through the pipeline</text>
+</svg>

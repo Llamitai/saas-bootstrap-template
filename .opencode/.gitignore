@@ -1,0 +1,7 @@
+/node_modules/
+
+# Local OpenCode plugin/package experiments. Project commands, hooks, skills,
+# and opencode.json are versioned; package manager artifacts are not required.
+/package.json
+/package-lock.json
+/bun.lock

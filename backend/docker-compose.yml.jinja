@@ -1,0 +1,107 @@
+name: [[ project_slug ]]-backend
+
+services:
+  directus-admin:
+    image: directus/directus:12.1.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8055:8055"
+    volumes:
+      - ./admin/database:/directus/database
+      - ./admin/uploads:/directus/uploads
+      - ./admin/extensions:/directus/extensions
+    environment:
+      SECRET: "${DIRECTUS_SECRET:-dev-only-directus-secret}"
+      ADMIN_EMAIL: "[[ owner_email ]]"
+      ADMIN_PASSWORD: "${DIRECTUS_ADMIN_PASSWORD:-12345678x}"
+      DB_CLIENT: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_DATABASE: "postgres"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      PUBLIC_URL: "http://localhost:8055"
+      WEBSOCKETS_ENABLED: "true"
+      BACKEND_API_URL: "http://api:8200"
+      # Interpolated from ADMIN_API_KEY in backend/.env so Directus and the API share one key.
+      BACKEND_API_KEY: "${ADMIN_API_KEY:-replace-with-admin-api-key}"
+      BACKEND_TENANT: "test"
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./admin/extensions
+          target: /directus/extensions
+
+  api:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - PROCESS_LABEL=api
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8200:8200"
+    volumes:
+      - .:/app
+    command: /start
+
+  postgres:
+    image: postgres:17
+    ports:
+      - "127.0.0.1:5434:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=2MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+
+  redis:
+    image: redis:8
+    ports:
+      - "127.0.0.1:6791:6379"
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ./public:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+
+  mailpit:
+    image: axllent/mailpit
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    ports:
+      - "127.0.0.1:8027:8025"
+      - "127.0.0.1:1027:1025"
+
+volumes:
+  postgres_data:

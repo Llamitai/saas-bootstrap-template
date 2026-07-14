@@ -1,0 +1,54 @@
+# [[ project_name ]] Docs
+
+App de documentación técnica aislada de la app principal.
+
+## Stack
+
+- React + TypeScript
+- React Router Framework Mode
+- Vite
+- Tailwind CSS v4
+- Fumadocs Core/UI/MDX
+- Orama para búsqueda estática
+- Mermaid para diagramas
+
+## Comandos
+
+```bash
+pnpm --prefix docs dev
+pnpm --prefix docs types:check
+pnpm --prefix docs build
+pnpm --prefix docs start
+```
+
+Desde la raíz también existen:
+
+```bash
+pnpm docs
+pnpm docs:build
+```
+
+## Contenido
+
+Todo contenido editorial va en `docs/content/docs`.
+
+- Usa nombres `kebab-case`.
+- Cada página `.mdx` debe tener frontmatter `title` y `description`.
+- No agregues `# Título` en el cuerpo; Fumadocs renderiza el título desde frontmatter.
+- Cada página debe abrir con `<Callout title="En resumen">`.
+- Usa `##` y `###` para secciones.
+- Usa bloques `mermaid` para diagramas.
+- Actualiza el `meta.json` del directorio al agregar una página.
+
+## Autenticación opcional
+
+`.env.example` incluye:
+
+```bash
+VITE_API_HOST=http://localhost:8200
+VITE_DOCS_REQUIRE_AUTH=false
+```
+
+Si `VITE_DOCS_REQUIRE_AUTH=true`, `auth-guard.tsx` redirige a `/login` y `session.tsx` guarda access/refresh token en `localStorage`.
+
+Este guard es cliente. En un sitio estático, el contenido ya prerenderizado existe en los archivos generados, así que no protege documentos sensibles a nivel servidor. Para documentación privada real, sirve el build detrás de autenticación en infraestructura o usa un servidor que autorice cada request.

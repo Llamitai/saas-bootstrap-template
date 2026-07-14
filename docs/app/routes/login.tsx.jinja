@@ -1,0 +1,85 @@
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { ThemeSwitchWithLogout } from "@/components/theme-switch-with-logout";
+import { useSession } from "@/lib/session";
+
+export function meta() {
+  return [{ title: "Login | [[ project_name ]] Docs" }];
+}
+
+export default function Login() {
+  const session = useSession();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await session.login(email, password);
+      navigate(searchParams.get("redirectTo") ?? "/docs", { replace: true });
+    } catch {
+      setError("No se pudo iniciar sesión con esas credenciales.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-fd-background px-6 py-6">
+      <div className="mx-auto flex max-w-4xl justify-end">
+        <ThemeSwitchWithLogout />
+      </div>
+      <section className="mx-auto mt-20 max-w-sm">
+        <p className="text-sm font-medium text-fd-muted-foreground">
+          Documentación privada
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold">Iniciar sesión</h1>
+        <form className="mt-8 grid gap-4" onSubmit={onSubmit}>
+          <label className="grid gap-2 text-sm font-medium">
+            Email
+            <input
+              autoComplete="email"
+              className="rounded-lg border border-fd-border bg-fd-card px-3 py-2"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            Password
+            <input
+              autoComplete="current-password"
+              className="rounded-lg border border-fd-border bg-fd-card px-3 py-2"
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </label>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            className="rounded-lg bg-fd-primary px-4 py-2 text-sm font-medium text-fd-primary-foreground disabled:opacity-60"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+        <Link
+          className="mt-6 inline-flex text-sm font-medium text-fd-primary"
+          to="/"
+        >
+          Volver al inicio
+        </Link>
+      </section>
+    </main>
+  );
+}

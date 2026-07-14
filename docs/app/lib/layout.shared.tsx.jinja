@@ -1,0 +1,22 @@
+import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+
+export function baseOptions(): BaseLayoutProps {
+  return {
+    nav: {
+      title: "[[ project_name ]] Docs",
+    },
+    links: [
+      {
+        text: "Inicio",
+        url: "/",
+      },
+      {
+        text: "Documentación",
+        url: "/docs",
+      },
+    ],
+    themeSwitch: {
+      enabled: false,
+    },
+  };
+}

@@ -1,0 +1,41 @@
+# Claude Code - Project Configuration
+
+Este directorio contiene configuración y skills versionados para usar Claude Code
+en [[ project_name ]].
+
+## Estructura
+
+```text
+.claude/
+├── settings.json          # Configuración versionada del proyecto
+├── settings.local.json    # Estado local ignorado por Git
+├── commands/              # Slash commands del proyecto
+├── hooks/                 # Hooks de Claude Code
+├── skills/                # Skills versionados del proyecto
+└── README.md              # Este archivo
+```
+
+## Skills
+
+Claude Code detecta los skills de `.claude/skills/` al trabajar en este repo.
+Los skills son parte del contrato del proyecto y se versionan para que otros
+agentes puedan mantener el código sin depender de instalaciones personales.
+
+También existen skills compartidos en `.agents/skills/`.
+
+## Commands y Hooks
+
+Los slash commands viven en `.claude/commands/`. Los hooks viven en
+`.claude/hooks/` y deben usar rutas relativas al proyecto cuando sea posible.
+
+## Portabilidad
+
+No guardar rutas absolutas del usuario, secrets ni permisos locales en archivos
+versionados. `settings.local.json` está ignorado por Git y puede contener estado
+específico de la máquina.
+
+## Recursos
+
+- [Documentación de Custom Skills](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills)
+- [Agent Skills Specification](http://agentskills.io)
+- [Ejemplos de Skills](https://github.com/anthropics/skills)

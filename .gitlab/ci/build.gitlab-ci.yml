@@ -1,0 +1,141 @@
+# Mirror of .github/workflows/build_backend.yml + build_frontend.yml
+# On push to main/dev (path-scoped): build the image to the GitLab Container
+# Registry, then redeploy the Portainer stack. main -> Production, dev -> Development.
+
+# --- Shared rule sets (path-scoped, with per-branch environment) ------------
+.rules-backend:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [backend/**/*]
+      variables: { DEPLOY_ENV: Production }
+    - if: $CI_COMMIT_BRANCH == "dev"
+      changes: [backend/**/*]
+      variables: { DEPLOY_ENV: Development }
+    - if: $CI_PIPELINE_SOURCE == "web"
+      variables: { DEPLOY_ENV: Development }
+
+.rules-frontend:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: [frontend/**/*]
+      variables: { DEPLOY_ENV: Production }
+    - if: $CI_COMMIT_BRANCH == "dev"
+      changes: [frontend/**/*]
+      variables: { DEPLOY_ENV: Development }
+    - if: $CI_PIPELINE_SOURCE == "web"
+      variables: { DEPLOY_ENV: Development }
+
+# --- Docker build template (DinD, GitLab registry) --------------------------
+.docker-build:
+  stage: build
+  image: docker:27
+  interruptible: false
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_TLS_VERIFY: "1"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
+# --- Portainer deploy template ----------------------------------------------
+.portainer-deploy:
+  stage: deploy
+  image: alpine:3.20
+  interruptible: false
+  variables:
+    IMAGE_TAG: "sha-$CI_COMMIT_SHORT_SHA"
+  before_script:
+    - apk add --no-cache curl jq
+
+# ============================ BACKEND =======================================
+build:backend:
+  extends: .docker-build
+  rules: !reference [.rules-backend, rules]
+  variables:
+    IMAGE: "$CI_REGISTRY_IMAGE/backend"
+    TAG: "sha-$CI_COMMIT_SHORT_SHA"
+  script:
+    - docker build --target production -t "$IMAGE:$TAG" -t "$IMAGE:latest" -f backend/Dockerfile backend
+    - docker push "$IMAGE:$TAG"
+    - docker push "$IMAGE:latest"
+
+deploy:backend:
+  extends: .portainer-deploy
+  needs: ["build:backend"]
+  rules: !reference [.rules-backend, rules]
+  environment:
+    name: $DEPLOY_ENV
+  script:
+    - |
+      ENV_ARRAY=$(jq -n \
+        --arg IMAGE_TAG "$IMAGE_TAG" \
+        --arg INFISICAL_SECRET_ENV "$INFISICAL_SECRET_ENV" \
+        --arg PROJECT_ID "$BACKEND_PROJECT_ID" \
+        --arg INFISICAL_API_URL "$INFISICAL_API_URL" \
+        --arg INFISICAL_MACHINE_CLIENT_ID "$INFISICAL_MACHINE_CLIENT_ID" \
+        --arg INFISICAL_MACHINE_CLIENT_SECRET "$INFISICAL_MACHINE_CLIENT_SECRET" \
+        --arg ADMIN_SECRET "$ADMIN_SECRET" \
+        --arg ADMIN_EMAIL "$ADMIN_EMAIL" \
+        --arg ADMIN_PASSWORD "$ADMIN_PASSWORD" \
+        --arg ADMIN_DB_HOST "$ADMIN_DB_HOST" \
+        --arg ADMIN_DB_DATABASE "$ADMIN_DB_DATABASE" \
+        --arg ADMIN_DB_USER "$ADMIN_DB_USER" \
+        --arg ADMIN_DB_PASSWORD "$ADMIN_DB_PASSWORD" \
+        --arg ADMIN_PUBLIC_URL "$ADMIN_PUBLIC_URL" \
+        '[
+          {name:"IMAGE_TAG",value:$IMAGE_TAG},
+          {name:"INFISICAL_SECRET_ENV",value:$INFISICAL_SECRET_ENV},
+          {name:"PROJECT_ID",value:$PROJECT_ID},
+          {name:"INFISICAL_API_URL",value:$INFISICAL_API_URL},
+          {name:"INFISICAL_MACHINE_CLIENT_ID",value:$INFISICAL_MACHINE_CLIENT_ID},
+          {name:"INFISICAL_MACHINE_CLIENT_SECRET",value:$INFISICAL_MACHINE_CLIENT_SECRET},
+          {name:"ADMIN_SECRET",value:$ADMIN_SECRET},
+          {name:"ADMIN_EMAIL",value:$ADMIN_EMAIL},
+          {name:"ADMIN_PASSWORD",value:$ADMIN_PASSWORD},
+          {name:"ADMIN_DB_HOST",value:$ADMIN_DB_HOST},
+          {name:"ADMIN_DB_DATABASE",value:$ADMIN_DB_DATABASE},
+          {name:"ADMIN_DB_USER",value:$ADMIN_DB_USER},
+          {name:"ADMIN_DB_PASSWORD",value:$ADMIN_DB_PASSWORD},
+          {name:"ADMIN_PUBLIC_URL",value:$ADMIN_PUBLIC_URL}
+        ]')
+    - sh .gitlab/ci/portainer-redeploy.sh "$BACKEND_DEPLOYMENT_SERVICE" "$ENV_ARRAY"
+
+# ============================ FRONTEND ======================================
+build:frontend:
+  extends: .docker-build
+  rules: !reference [.rules-frontend, rules]
+  variables:
+    IMAGE: "$CI_REGISTRY_IMAGE/frontend"
+    TAG: "sha-$CI_COMMIT_SHORT_SHA"
+  script:
+    - docker build --target production -t "$IMAGE:$TAG" -t "$IMAGE:latest" -f frontend/Dockerfile frontend
+    - docker push "$IMAGE:$TAG"
+    - docker push "$IMAGE:latest"
+
+deploy:frontend:
+  extends: .portainer-deploy
+  needs: ["build:frontend"]
+  rules: !reference [.rules-frontend, rules]
+  environment:
+    name: $DEPLOY_ENV
+  script:
+    - |
+      ENV_ARRAY=$(jq -n \
+        --arg IMAGE_TAG "$IMAGE_TAG" \
+        --arg INFISICAL_SECRET_ENV "$INFISICAL_SECRET_ENV" \
+        --arg PROJECT_ID "$FRONTEND_PROJECT_ID" \
+        --arg INFISICAL_API_URL "$INFISICAL_API_URL" \
+        --arg INFISICAL_MACHINE_CLIENT_ID "$INFISICAL_MACHINE_CLIENT_ID" \
+        --arg INFISICAL_MACHINE_CLIENT_SECRET "$INFISICAL_MACHINE_CLIENT_SECRET" \
+        '[
+          {name:"IMAGE_TAG",value:$IMAGE_TAG},
+          {name:"INFISICAL_SECRET_ENV",value:$INFISICAL_SECRET_ENV},
+          {name:"PROJECT_ID",value:$PROJECT_ID},
+          {name:"INFISICAL_API_URL",value:$INFISICAL_API_URL},
+          {name:"INFISICAL_MACHINE_CLIENT_ID",value:$INFISICAL_MACHINE_CLIENT_ID},
+          {name:"INFISICAL_MACHINE_CLIENT_SECRET",value:$INFISICAL_MACHINE_CLIENT_SECRET}
+        ]')
+    - sh .gitlab/ci/portainer-redeploy.sh "$FRONTEND_DEPLOYMENT_SERVICE" "$ENV_ARRAY"

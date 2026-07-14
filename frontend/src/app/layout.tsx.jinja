@@ -1,0 +1,117 @@
+import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import "@/src/app/globals.css";
+import { ThemeProvider } from "@/features/app-shell";
+import { SessionProvider } from "@/features/auth";
+import { QueryProvider } from "@/shared/providers/query-provider";
+
+// Material Symbols Rounded as a variable font with an animatable FILL axis
+// (next/font can't expose FILL). `display=block` is deliberate: for an icon
+// font it avoids the FOUT where the ligature text ("settings") flashes before
+// the glyph loads — `swap` would flash that text and `optional` could skip the
+// icons entirely. (Kept as a const so it reads as config, not inline noise.)
+const MATERIAL_SYMBOLS_STYLESHEET =
+  "https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Metadata");
+  const locale = await getLocale();
+  const title = t("title");
+  const description = t("description");
+
+  return {
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_APP_URL || "https://example.com"
+    ),
+    title: {
+      default: title,
+      template: "%s | [[ project_name ]]",
+    },
+    description,
+    authors: [{ name: "[[ project_name ]]" }],
+    creator: "[[ project_name ]]",
+    publisher: "[[ project_name ]]",
+    openGraph: {
+      type: "website",
+      locale: locale === "es" ? "es_ES" : "en_US",
+      url: "https://example.com",
+      title,
+      description,
+      siteName: "[[ project_name ]]",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+    icons: {
+      icon: [
+        { url: "/favicon.ico" },
+        { url: "/favicon.svg", type: "image/svg+xml" },
+      ],
+      shortcut: "/favicon.ico",
+      apple: "/favicon.png",
+    },
+    manifest: "/manifest.json",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "[[ project_name ]]",
+    },
+  };
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const locale = await getLocale();
+
+  return (
+    <html lang={locale} suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* Material Symbols Rounded — see MATERIAL_SYMBOLS_STYLESHEET. */}
+        <link rel="stylesheet" href={MATERIAL_SYMBOLS_STYLESHEET} />
+      </head>
+      <body className="antialiased">
+        <NextIntlClientProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <QueryProvider>
+              <SessionProvider>{children}</SessionProvider>
+            </QueryProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  );
+}

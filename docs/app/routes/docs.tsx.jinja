@@ -1,0 +1,80 @@
+import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import {
+  DocsBody,
+  DocsDescription,
+  DocsPage,
+  DocsTitle,
+} from "fumadocs-ui/layouts/docs/page";
+import { data } from "react-router";
+import type { Route } from "./+types/docs";
+import { AuthGuard } from "@/components/auth-guard";
+import { getMDXComponents } from "@/components/mdx";
+import { ThemeSwitchWithLogout } from "@/components/theme-switch-with-logout";
+import { baseOptions } from "@/lib/layout.shared";
+import { source } from "@/lib/source";
+
+function slugsFromParams(params: Route.LoaderArgs["params"]) {
+  return (params["*"] ?? "").split("/").filter(Boolean);
+}
+
+export function loader({ params }: Route.LoaderArgs) {
+  const slugs = slugsFromParams(params);
+  const page = source.getPage(slugs);
+
+  if (!page) {
+    throw data("Página no encontrada", { status: 404 });
+  }
+
+  return {
+    slugs,
+  };
+}
+
+export function meta({ data: loaderData }: Route.MetaArgs) {
+  if (!loaderData) {
+    return [{ title: "No encontrado | [[ project_name ]] Docs" }];
+  }
+
+  const page = source.getPage(loaderData.slugs);
+
+  return [
+    { title: `${page?.data.title ?? "Docs"} | [[ project_name ]] Docs` },
+    {
+      name: "description",
+      content: page?.data.description ?? "Documentación técnica.",
+    },
+  ];
+}
+
+export default function DocsRoute({ loaderData }: Route.ComponentProps) {
+  const page = source.getPage(loaderData.slugs);
+
+  if (!page) {
+    throw data("Página no encontrada", { status: 404 });
+  }
+
+  const MDX = page.data.body;
+
+  return (
+    <AuthGuard>
+      <DocsLayout
+        {...baseOptions()}
+        sidebar={{
+          banner: <ThemeSwitchWithLogout />,
+          defaultOpenLevel: 1,
+        }}
+        tree={source.getPageTree()}
+      >
+        <DocsPage toc={page.data.toc}>
+          <DocsTitle>{page.data.title}</DocsTitle>
+          {page.data.description ? (
+            <DocsDescription>{page.data.description}</DocsDescription>
+          ) : null}
+          <DocsBody>
+            <MDX components={getMDXComponents()} />
+          </DocsBody>
+        </DocsPage>
+      </DocsLayout>
+    </AuthGuard>
+  );
+}
