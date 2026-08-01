@@ -2,7 +2,7 @@ import pytest
 import requests
 from expects import equal, expect, have_key
 
-from src.common.domain.constants.status import HTTP_200_OK, HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
+from src.common.domain.constants.status import HTTP_200_OK, HTTP_401_UNAUTHORIZED
 from tests.api.conftest import BASE_URL, USER_EMAIL, USER_PASSWORD
 
 pytestmark = [pytest.mark.api]
@@ -36,13 +36,13 @@ def test_session__returns_user_profile():
     expect(result["user"]).to(have_key("emailAddress"))
 
 
-def test_session__unauthenticated_returns_403():
+def test_session__unauthenticated_returns_401():
     response = requests.get(
         url=f"{BASE_URL}/v1/auth/session",
         timeout=30,
     )
 
-    expect(response.status_code).to(equal(HTTP_403_FORBIDDEN))
+    expect(response.status_code).to(equal(HTTP_401_UNAUTHORIZED))
 
 
 def test_session__invalid_token_returns_401():

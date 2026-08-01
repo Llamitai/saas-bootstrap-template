@@ -27,10 +27,12 @@ jobs:
         uses: extractions/setup-just@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.3.0
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+          # v9 flipped this default to false; pinned to keep caches pruned.
+          prune-cache: true
 
       - name: Create backend .env
         run: cp backend/.env.example backend/.env
