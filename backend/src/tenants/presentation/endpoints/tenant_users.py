@@ -27,8 +27,8 @@ async def get_tenant_users(
         user_repository=domain_context.tenant_user_repository,
     ).execute()
 
-    current_page.apply_presenter(TenantUserPresenter)
+    presented_page = current_page.apply_presenter(TenantUserPresenter)
     return ApiJSONResponse(
-        content=current_page,
+        content=presented_page,
         status_code=status.HTTP_200_OK,
     )

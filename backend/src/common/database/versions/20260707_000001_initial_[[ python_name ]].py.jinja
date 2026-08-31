@@ -174,8 +174,31 @@ def upgrade() -> None:
         postgresql_where=sa.text("status = 'PENDING'"),
     )
 
+    op.create_table(
+        "admin_api_keys",
+        _uuid_pk(),
+        *_timestamps(),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("key_prefix", sa.String(length=20), nullable=True),
+        sa.Column("key_hash", sa.String(length=64), nullable=False),
+        sa.Column("permissions", sa.JSON(), nullable=False),
+        sa.Column("is_revoked", sa.Boolean(), nullable=False),
+        sa.Column(
+            "tenants",
+            sa.JSON(),
+            nullable=True,
+            comment="List of tenant IDs this API key can access. If null, it has access to all tenants.",
+        ),
+        sa.PrimaryKeyConstraint("uuid"),
+    )
+    op.create_index(op.f("ix_admin_api_keys_key_hash"), "admin_api_keys", ["key_hash"], unique=True)
+    op.create_index(op.f("ix_admin_api_keys_key_prefix"), "admin_api_keys", ["key_prefix"], unique=True)
+
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_admin_api_keys_key_prefix"), table_name="admin_api_keys")
+    op.drop_index(op.f("ix_admin_api_keys_key_hash"), table_name="admin_api_keys")
+    op.drop_table("admin_api_keys")
     op.drop_index("uq_tenant_user_invitations_pending_email", table_name="tenant_user_invitations")
     op.drop_index("ix_tenant_user_invitations_tenant_id", table_name="tenant_user_invitations")
     op.drop_table("tenant_user_invitations")

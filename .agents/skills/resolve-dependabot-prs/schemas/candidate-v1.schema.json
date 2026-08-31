@@ -46,7 +46,6 @@
         "$ref": "#/$defs/source"
       },
       "minItems": 1,
-      "maxItems": 1,
       "uniqueItems": true
     },
     "manifestPaths": {
@@ -62,8 +61,7 @@
       "items": {
         "$ref": "#/$defs/version"
       },
-      "minItems": 1,
-      "uniqueItems": true
+      "minItems": 1
     },
     "additionalDependencies": {
       "type": "array",
@@ -181,10 +179,54 @@
       "uniqueItems": true
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "sources"
+        ],
+        "properties": {
+          "sources": {
+            "minItems": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stabilityEvidence": {
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/releaseEvidence"
+                },
+                {
+                  "properties": {
+                    "summary": {
+                      "oneOf": [
+                        {
+                          "pattern": "^breaking=(?:none|not-applicable); adaptation=(?:not-required|.+)$"
+                        },
+                        {
+                          "pattern": "^breaking=applicable; adaptation=(?!not-required$).+$"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
   "oneOf": [
     {
       "title": "direct update",
       "properties": {
+        "sources": {
+          "maxItems": 1
+        },
         "decision": {
           "const": "update"
         },
@@ -270,7 +312,6 @@
         },
         "closureEvidence": {
           "minItems": 1,
-          "maxItems": 1,
           "items": {
             "allOf": [
               {
@@ -323,7 +364,6 @@
         },
         "closureEvidence": {
           "minItems": 1,
-          "maxItems": 1,
           "items": {
             "allOf": [
               {
@@ -377,7 +417,6 @@
         },
         "closureEvidence": {
           "minItems": 1,
-          "maxItems": 1,
           "items": {
             "allOf": [
               {
@@ -427,7 +466,6 @@
         },
         "closureEvidence": {
           "minItems": 1,
-          "maxItems": 1,
           "items": {
             "allOf": [
               {

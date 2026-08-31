@@ -22,7 +22,7 @@ import time
 import urllib.parse
 from collections import Counter
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 EXIT_OK = 0
@@ -37,6 +37,14 @@ EXIT_BLOCKED = 8
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_HASH_RE = re.compile(r"^[0-9a-f]{12}$")
+REPLACEMENT_SOURCE_MARKER_RE = re.compile(
+    r"<!-- resolve-dependabot-prs:v1 source=([1-9][0-9]*@[0-9a-f]{40}) "
+    r"plan=[0-9a-f]{64} tree=[0-9a-f]{40} -->"
+)
+LEGACY_REPLACEMENT_MARKER_RE = re.compile(
+    r"<!-- resolve-dependabot-prs:v1 key=([0-9a-f]{12}) "
+    r"source=([1-9][0-9]*@[0-9a-f]{40}) -->"
+)
 IMPACTS = {"patch", "minor", "major", "non-semver", "unknown"}
 ECOSYSTEMS = {"npm", "uv", "docker", "github-actions", "unknown"}
 
@@ -618,16 +626,98 @@ def _dependency_paths(files: Sequence[str]) -> tuple[list[str], list[str]]:
 
 
 _BUMP_LINE = re.compile(
-    r"Bumps?\s+(?:\[([^\]]+)\]\([^)]+\)|([^\s]+))\s+from\s+`?([^\s`]+)`?\s+to\s+`?([^\s`]+)`?",
-    re.IGNORECASE,
+    r"^Bumps?[ \t]+(?:\[([^\]]+)\]\([^)]+\)|([^\s]+))[ \t]+from[ \t]+`?([^\s`]+)`?[ \t]+to[ \t]+`?([^\s`]+)`?",
+    re.IGNORECASE | re.MULTILINE,
+)
+_UPDATE_LINE = re.compile(
+    r"^Updates[ \t]+`([^`]+)`[ \t]+from[ \t]+`?([^\s`]+)`?[ \t]+to[ \t]+`?([^\s`]+)`?",
+    re.IGNORECASE | re.MULTILINE,
 )
 _BUMP_TITLE = re.compile(
     r"^Bump\s+(.+?)\s+from\s+([^\s]+)\s+to\s+([^\s]+)", re.IGNORECASE
+)
+_DETAILS_TAG = re.compile(
+    r"(?P<close></details\s*>)|(?P<open><details\b[^>]*>)",
+    re.IGNORECASE,
+)
+_RAW_UPDATE_TYPE = re.compile(
+    r"version-update:semver-(patch|minor|major)", re.IGNORECASE
 )
 
 
 def _clean_version(value: str) -> str:
     return value.strip().strip("`.,;:)")
+
+
+def _trusted_body_surface(body: str) -> tuple[str, bool]:
+    """Return top-level body text without expandable upstream content."""
+
+    fragments: list[str] = []
+    depth = 0
+    cursor = 0
+    for match in _DETAILS_TAG.finditer(body):
+        if depth == 0:
+            fragments.append(body[cursor : match.start()])
+        if match.group("open") is not None:
+            if depth == 0:
+                fragments.append("\n")
+            depth += 1
+        else:
+            if depth == 0:
+                return "", False
+            depth -= 1
+        cursor = match.end()
+    if depth != 0:
+        return "", False
+    fragments.append(body[cursor:])
+    return "".join(fragments), True
+
+
+def _dependency_identity(name: str, ecosystem: str) -> str:
+    normalized = name.strip()
+    if ecosystem == "uv":
+        return re.sub(r"[-_.]+", "-", normalized).casefold()
+    return normalized.casefold()
+
+
+def _body_transitions(
+    body: str, ecosystem: str
+) -> tuple[list[tuple[str, str, str]], str]:
+    surface, balanced = _trusted_body_surface(body)
+    if not balanced:
+        return [], ""
+
+    observed: list[tuple[int, str, str, str]] = []
+    for match in _BUMP_LINE.finditer(surface):
+        observed.append(
+            (
+                match.start(),
+                (match.group(1) or match.group(2)).strip(),
+                _clean_version(match.group(3)),
+                _clean_version(match.group(4)),
+            )
+        )
+    for match in _UPDATE_LINE.finditer(surface):
+        observed.append(
+            (
+                match.start(),
+                match.group(1).strip(),
+                _clean_version(match.group(2)),
+                _clean_version(match.group(3)),
+            )
+        )
+    observed.sort(key=lambda item: item[0])
+
+    transitions: dict[str, tuple[str, str, str]] = {}
+    for _, name, old, new in observed:
+        identity = _dependency_identity(name, ecosystem)
+        previous = transitions.get(identity)
+        if previous is None:
+            transitions[identity] = (name, old, new)
+            continue
+        if previous[1:] != (old, new):
+            return [], surface
+    return list(transitions.values()), surface
 
 
 def _parse_dependencies(
@@ -636,15 +726,8 @@ def _parse_dependencies(
     ecosystem: str,
     head_ref: str,
 ) -> list[dict[str, Any]]:
-    found: list[tuple[str, str | None, str | None]] = []
-    for match in _BUMP_LINE.finditer(body):
-        found.append(
-            (
-                (match.group(1) or match.group(2)).strip(),
-                _clean_version(match.group(3)),
-                _clean_version(match.group(4)),
-            )
-        )
+    parsed, trusted_body = _body_transitions(body, ecosystem)
+    found: list[tuple[str, str | None, str | None]] = list(parsed)
     if not found:
         match = _BUMP_TITLE.search(title)
         if match:
@@ -658,14 +741,19 @@ def _parse_dependencies(
     if not found:
         name = re.sub(r"^Bump\s+", "", title, flags=re.I).strip() or "unknown"
         found.append((name, None, None))
-    raw_match = re.search(
-        r"version-update:semver-(patch|minor|major)", f"{body}\n{head_ref}", re.I
+    raw_impacts = {
+        match.group(1).lower()
+        for match in _RAW_UPDATE_TYPE.finditer(f"{trusted_body}\n{head_ref}")
+    }
+    raw = (
+        f"version-update:semver-{next(iter(raw_impacts))}"
+        if len(raw_impacts) == 1 and len(found) == 1
+        else None
     )
-    raw = f"version-update:semver-{raw_match.group(1).lower()}" if raw_match else None
     dependencies: dict[tuple[str, str | None, str | None], dict[str, Any]] = {}
     for name, old, new in found:
         impact, prerelease = classify_version(ecosystem, old, new, raw)
-        key = (name, old, new)
+        key = (_dependency_identity(name, ecosystem), old, new)
         dependencies[key] = {
             "name": name,
             "ecosystem": ecosystem,
@@ -706,6 +794,102 @@ def _inventory_error(error: ExecutorError) -> dict[str, Any]:
         "prNumber": error.details.get("prNumber"),
         "transient": code in {"API", "RATE_LIMIT"},
     }
+
+
+def _build_inventory_groups(
+    pull_requests: Sequence[Mapping[str, Any]],
+    parser_error_numbers: set[int],
+    branch_shas: Mapping[tuple[str, str], str],
+) -> list[dict[str, Any]]:
+    batch_buckets: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+    singleton_buckets: list[list[Mapping[str, Any]]] = []
+    for pull in pull_requests:
+        stable_low_risk = (
+            pull["number"] not in parser_error_numbers
+            and pull["observedAggregateImpact"] in {"patch", "minor"}
+            and all(
+                dependency["prerelease"] is False
+                and dependency["impact"] in {"patch", "minor"}
+                for dependency in pull["dependencies"]
+            )
+        )
+        if stable_low_risk:
+            batch_buckets.setdefault(
+                (pull["base"]["repo"], pull["base"]["ref"]), []
+            ).append(pull)
+        else:
+            singleton_buckets.append([pull])
+
+    groups: list[dict[str, Any]] = []
+    for bucket in [*batch_buckets.values(), *singleton_buckets]:
+        first = bucket[0]
+        branch = (first["base"]["repo"], first["base"]["ref"])
+        base_sha = branch_shas.get(branch)
+        if base_sha is None:
+            continue
+        ordered = sorted(bucket, key=lambda item: item["number"])
+        source_lines = "".join(
+            f"{pull['number']}@{pull['head']['sha']}\n" for pull in ordered
+        )
+        identity = f"v1\n{branch[0]}\n{branch[1]}@{base_sha}\n{source_lines}"
+        groups.append(
+            {
+                "groupKey": hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+                "base": {"repo": branch[0], "ref": branch[1], "sha": base_sha},
+                "prNumbers": [pull["number"] for pull in ordered],
+                "manifestPaths": sorted(
+                    {path for pull in ordered for path in pull["manifests"]}
+                ),
+                "observedAggregateImpact": aggregate_impact(
+                    [pull["observedAggregateImpact"] for pull in ordered]
+                ),
+            }
+        )
+    return sorted(groups, key=lambda item: item["groupKey"])
+
+
+def _resolve_group_branch_shas(
+    pull_requests: Sequence[Mapping[str, Any]],
+    repository: Mapping[str, Any],
+    runner: Runner,
+    errors: list[dict[str, Any]],
+) -> dict[tuple[str, str], str]:
+    branch_shas: dict[tuple[str, str], str] = {}
+    attempted: set[tuple[str, str]] = set()
+    for pull in pull_requests:
+        branch = (str(pull["base"]["repo"]), str(pull["base"]["ref"]))
+        if branch in attempted:
+            continue
+        attempted.add(branch)
+        if branch[1] == repository["defaultBranch"]:
+            branch_shas[branch] = str(repository["defaultBranchSha"])
+            continue
+        try:
+            current_sha = _current_ref_sha(runner, repository, branch[1])
+        except ExecutorError as exc:
+            errors.append(
+                {
+                    "code": "API",
+                    "message": (
+                        f"Could not resolve base branch {branch[1]}: {exc.message}"
+                    ),
+                    "prNumber": pull["number"],
+                    "transient": True,
+                }
+            )
+            continue
+        if current_sha is None:
+            errors.append(
+                {
+                    "code": "API",
+                    "message": f"Base branch {branch[1]} is unavailable",
+                    "prNumber": pull["number"],
+                    "transient": True,
+                }
+            )
+            continue
+        branch_shas[branch] = current_sha
+    return branch_shas
 
 
 def inspect_repository(
@@ -896,22 +1080,12 @@ def inspect_repository(
     )
     overlaps.sort(key=lambda item: (item["kind"], item["key"]))
 
-    groups: list[dict[str, Any]] = []
-    for pull in pull_requests:
-        identity = (
-            f"v1\n{pull['base']['repo']}\n{pull['base']['ref']}@{pull['base']['sha']}\n"
-            f"{pull['number']}@{pull['head']['sha']}\n"
-        )
-        groups.append(
-            {
-                "groupKey": hashlib.sha256(identity.encode("utf-8")).hexdigest(),
-                "base": dict(pull["base"]),
-                "prNumbers": [pull["number"]],
-                "manifestPaths": list(pull["manifests"]),
-                "observedAggregateImpact": pull["observedAggregateImpact"],
-            }
-        )
-    groups.sort(key=lambda item: item["groupKey"])
+    parser_error_numbers = {
+        item["prNumber"] for item in errors if item["code"] == "PARSE"
+    }
+    branch_shas = _resolve_group_branch_shas(pull_requests, repository, runner, errors)
+
+    groups = _build_inventory_groups(pull_requests, parser_error_numbers, branch_shas)
     errors.sort(key=lambda item: (item["code"], item["prNumber"] or 0))
     inventory.update(
         {
@@ -968,6 +1142,11 @@ def _source_version_key(value: Mapping[str, Any]) -> tuple[str, str, Any, Any]:
     return value["name"], value["ecosystem"], value["from"], value["to"]
 
 
+def _release_subject(value: Mapping[str, Any]) -> str:
+    name = _dependency_identity(str(value["name"]), str(value["ecosystem"]))
+    return f"{value['ecosystem']}:{name}@{value['to']}"
+
+
 def _effective_impact(versions: Sequence[Mapping[str, Any]]) -> str:
     rank = {"patch": 0, "minor": 1, "major": 2, "non-semver": 2, "unknown": 2}
     if not versions:
@@ -978,7 +1157,9 @@ def _effective_impact(versions: Sequence[Mapping[str, Any]]) -> str:
     return observed if observed in {"patch", "minor"} else "major"
 
 
-def _validate_release_evidence(value: Any) -> list[dict[str, Any]]:
+def _validate_release_evidence(
+    value: Any, *, structured_summary: bool = False
+) -> list[dict[str, Any]]:
     _contract(isinstance(value, list), "stabilityEvidence must be an array")
     fields = {"kind", "subject", "url", "summary", "contentSha256"}
     result: list[dict[str, Any]] = []
@@ -998,6 +1179,21 @@ def _validate_release_evidence(value: Any) -> list[dict[str, Any]]:
             and SHA256_RE.fullmatch(item["contentSha256"]),
             "Release evidence digest is invalid",
         )
+        if structured_summary:
+            summary = str(item["summary"]).strip()
+            summary_match = re.fullmatch(
+                r"breaking=(none|applicable|not-applicable); adaptation=(not-required|.+)",
+                summary,
+            )
+            _contract(
+                summary_match is not None,
+                "Release evidence summary must describe breaking changes and adaptation",
+            )
+            _contract(
+                summary_match.group(1) != "applicable"
+                or summary_match.group(2) != "not-required",
+                "Applicable breaking changes require an adaptation",
+            )
         result.append(item)
     _contract(
         len({canonical_json(item) for item in result}) == len(result),
@@ -1166,8 +1362,8 @@ def _validate_candidate(
 
     sources = candidate["sources"]
     _contract(
-        isinstance(sources, list) and len(sources) == 1,
-        "V1 candidates require exactly one source",
+        isinstance(sources, list) and bool(sources),
+        "Candidates require at least one source",
     )
     source_fields = {"number", "headSha"}
     for index, source in enumerate(sources):
@@ -1186,8 +1382,12 @@ def _validate_candidate(
         "Sources must be sorted",
     )
     _contract(
-        [item["number"] for item in sources] == group.get("prNumbers"),
-        "Sources differ from the inventory group",
+        len({item["number"] for item in sources}) == len(sources),
+        "Sources must be unique",
+    )
+    _contract(
+        {item["number"] for item in sources}.issubset(set(group.get("prNumbers", []))),
+        "Sources are not a subset of the inventory group",
     )
     pulls = {
         item["number"]: item
@@ -1201,8 +1401,11 @@ def _validate_candidate(
             pull.get("head", {}).get("sha") == source["headSha"],
             "Candidate source head is stale",
         )
+        pull_base = pull.get("base", {})
         _contract(
-            pull.get("base") == candidate["base"], "Candidate mixes base snapshots"
+            pull_base.get("repo") == candidate["base"]["repo"]
+            and pull_base.get("ref") == candidate["base"]["ref"],
+            "Candidate mixes base repositories or refs",
         )
         _contract(
             not any(
@@ -1214,18 +1417,47 @@ def _validate_candidate(
             "A source with parser errors cannot be planned",
         )
 
+    selected_pulls = [pulls[source["number"]] for source in sources]
+    for index, left in enumerate(selected_pulls):
+        left_dependencies = {
+            _dependency_identity(item["name"], item["ecosystem"]): item["toVersion"]
+            for item in left.get("dependencies", [])
+        }
+        for right in selected_pulls[index + 1 :]:
+            if not set(left.get("manifests", [])).intersection(
+                right.get("manifests", [])
+            ):
+                continue
+            for item in right.get("dependencies", []):
+                identity = _dependency_identity(item["name"], item["ecosystem"])
+                if (
+                    identity in left_dependencies
+                    and left_dependencies[identity] != item["toVersion"]
+                ):
+                    _contract(
+                        False,
+                        "Sources target incompatible versions in the same manifest",
+                        dependency=identity,
+                    )
+
     manifests = _sorted_unique_strings(
         candidate["manifestPaths"], "manifestPaths", nonempty=True
     )
     for path in manifests:
         _safe_path(path)
     _contract(
-        manifests == group.get("manifestPaths"),
-        "Candidate manifests differ from its group",
+        manifests
+        == sorted(
+            {path for pull in selected_pulls for path in pull.get("manifests", [])}
+        ),
+        "Candidate manifests differ from its selected sources",
     )
     _contract(
-        candidate["observedAggregateImpact"] == group.get("observedAggregateImpact"),
-        "Observed aggregate impact cannot be overridden",
+        candidate["observedAggregateImpact"]
+        == aggregate_impact(
+            [pull["observedAggregateImpact"] for pull in selected_pulls]
+        ),
+        "Observed aggregate impact differs from selected sources",
     )
     _contract(
         candidate["observedAggregateImpact"] in IMPACTS,
@@ -1266,10 +1498,6 @@ def _validate_candidate(
             name=version["name"],
         )
     _contract(versions == sorted(versions, key=_version_key), "Versions must be sorted")
-    _contract(
-        len({canonical_json(item) for item in versions}) == len(versions),
-        "Versions must be unique",
-    )
 
     additions = candidate["additionalDependencies"]
     _contract(isinstance(additions, list), "additionalDependencies must be an array")
@@ -1369,7 +1597,9 @@ def _validate_candidate(
         decision in {"update", "close-nonapplicable", "close-declined-major"},
         "Invalid candidate decision",
     )
-    release_evidence = _validate_release_evidence(candidate["stabilityEvidence"])
+    release_evidence = _validate_release_evidence(
+        candidate["stabilityEvidence"], structured_summary=len(sources) > 1
+    )
     closure_evidence = (
         _validate_closure_evidence(candidate["closureEvidence"], sources)
         if decision != "update"
@@ -1395,12 +1625,24 @@ def _validate_candidate(
             "Update tree SHA is invalid",
         )
         _contract(bool(release_evidence), "Update requires stability evidence")
+        if len(sources) > 1:
+            required_evidence = {_release_subject(version) for version in versions}
+            observed_evidence = {item["subject"] for item in release_evidence}
+            _contract(
+                required_evidence.issubset(observed_evidence),
+                "Release evidence must cover every target dependency",
+                missing=sorted(required_evidence - observed_evidence),
+            )
         _contract(closure_evidence == [], "Update cannot carry closure evidence")
         _contract(
             not any(item["prerelease"] is True for item in versions),
             "Prerelease updates cannot be planned for merge",
         )
         if candidate["mode"] == "direct":
+            _contract(
+                len(sources) == 1,
+                "Direct updates require exactly one source",
+            )
             _contract(
                 candidate["targetPrNumber"] == sources[0]["number"],
                 "Direct update target must be its source",
@@ -1760,17 +2002,24 @@ def _verify_plan_structure(plan: dict[str, Any]) -> None:
     _contract(candidate["schemaVersion"] == 1, "Unsupported candidate schema")
     sources = candidate["sources"]
     _contract(
-        isinstance(sources, list) and len(sources) == 1, "V1 plan must have one source"
+        isinstance(sources, list) and bool(sources),
+        "Plan must have at least one source",
     )
-    _exact_object(sources[0], {"number", "headSha"}, "source")
+    for source in sources:
+        _exact_object(source, {"number", "headSha"}, "source")
+        _contract(
+            isinstance(source["number"], int) and source["number"] > 0,
+            "Invalid source number",
+        )
+        _contract(
+            isinstance(source["headSha"], str)
+            and SHA40_RE.fullmatch(source["headSha"]),
+            "Invalid source head",
+        )
     _contract(
-        isinstance(sources[0]["number"], int) and sources[0]["number"] > 0,
-        "Invalid source number",
-    )
-    _contract(
-        isinstance(sources[0]["headSha"], str)
-        and SHA40_RE.fullmatch(sources[0]["headSha"]),
-        "Invalid source head",
+        sources == sorted(sources, key=lambda item: item["number"])
+        and len({item["number"] for item in sources}) == len(sources),
+        "Plan sources must be sorted and unique",
     )
     repository = _exact_object(
         candidate["repository"],
@@ -1859,10 +2108,6 @@ def _verify_plan_structure(plan: dict[str, Any]) -> None:
         versions == sorted(versions, key=_version_key), "Plan versions must be sorted"
     )
     _contract(
-        len({canonical_json(item) for item in versions}) == len(versions),
-        "Plan versions must be unique",
-    )
-    _contract(
         candidate["effectiveImpact"] == _effective_impact(versions),
         "Plan effective impact is invalid",
     )
@@ -1925,6 +2170,10 @@ def _verify_plan_structure(plan: dict[str, Any]) -> None:
         )
         if candidate["mode"] == "direct":
             _contract(
+                len(sources) == 1,
+                "Direct plans require exactly one source",
+            )
+            _contract(
                 candidate["commitSha"] == sources[0]["headSha"]
                 and candidate["targetPrNumber"] == sources[0]["number"],
                 "Direct target is invalid",
@@ -1945,10 +2194,17 @@ def _verify_plan_structure(plan: dict[str, Any]) -> None:
                 candidate["targetPrNumber"] is None,
                 "Replacement target PR must be null",
             )
-        _contract(
-            bool(_validate_release_evidence(candidate["stabilityEvidence"])),
-            "Update requires release evidence",
+        evidence = _validate_release_evidence(
+            candidate["stabilityEvidence"], structured_summary=len(sources) > 1
         )
+        _contract(bool(evidence), "Update requires release evidence")
+        if len(sources) > 1:
+            _contract(
+                {_release_subject(version) for version in versions}.issubset(
+                    {item["subject"] for item in evidence}
+                ),
+                "Plan release evidence is incomplete",
+            )
         _contract(
             candidate["closureEvidence"] == [], "Update cannot carry closure evidence"
         )
@@ -2188,7 +2444,7 @@ def _validate_state_shape(state: Any) -> dict[str, Any]:
 
     operations = value["operations"]
     _contract(
-        isinstance(operations, list) and 1 <= len(operations) <= 4,
+        isinstance(operations, list) and bool(operations),
         "State operations are invalid",
     )
     for operation in operations:
@@ -2253,21 +2509,29 @@ def _validate_state_shape(state: Any) -> dict[str, Any]:
 
     sources = value["sources"]
     _contract(
-        isinstance(sources, list) and len(sources) == 1, "State must contain one source"
+        isinstance(sources, list) and bool(sources),
+        "State must contain at least one source",
     )
-    source = _exact_object(sources[0], {"number", "headSha", "status"}, "state source")
+    for source in sources:
+        source = _exact_object(source, {"number", "headSha", "status"}, "state source")
+        _contract(
+            type(source["number"]) is int and source["number"] > 0,
+            "State source number is invalid",
+        )
+        _contract(
+            isinstance(source["headSha"], str)
+            and SHA40_RE.fullmatch(source["headSha"]),
+            "State source head is invalid",
+        )
+        _contract(
+            isinstance(source["status"], str)
+            and source["status"] in {"open", "merged", "closed"},
+            "State source status is invalid",
+        )
     _contract(
-        type(source["number"]) is int and source["number"] > 0,
-        "State source number is invalid",
-    )
-    _contract(
-        isinstance(source["headSha"], str) and SHA40_RE.fullmatch(source["headSha"]),
-        "State source head is invalid",
-    )
-    _contract(
-        isinstance(source["status"], str)
-        and source["status"] in {"open", "merged", "closed"},
-        "State source status is invalid",
+        sources == sorted(sources, key=lambda item: item["number"])
+        and len({item["number"] for item in sources}) == len(sources),
+        "State sources must be sorted and unique",
     )
 
     blocked = value["blocked"]
@@ -2302,12 +2566,14 @@ def _validate_state_shape(state: Any) -> dict[str, Any]:
         _contract(
             replacement is not None
             and merge_sha is not None
-            and source["status"] == "closed",
+            and all(source["status"] == "closed" for source in sources),
             "sources-closed state is inconsistent",
         )
     if value["status"] == "closed":
         _contract(
-            replacement is None and merge_sha is None and source["status"] == "closed",
+            replacement is None
+            and merge_sha is None
+            and all(source["status"] == "closed" for source in sources),
             "Closed state is inconsistent",
         )
     return value
@@ -2552,19 +2818,19 @@ def _verify_source_pr(
     candidate: Mapping[str, Any],
     source: Mapping[str, Any],
     *,
-    allow_base_sha_change: bool = False,
+    require_open: bool = False,
+    allow_merged: bool = False,
 ) -> None:
     if _pr_head_sha(pr) != source["headSha"]:
         raise ExecutorError(
             EXIT_STALE, "STALE_SNAPSHOT", f"Source PR #{source['number']} head changed"
         )
-    repo, ref, sha = _pr_base(pr)
+    repo, ref, _ = _pr_base(pr)
     base = candidate["base"]
     if not (
         isinstance(repo, str)
         and repo.lower() == base["repo"].lower()
         and ref == base["ref"]
-        and (allow_base_sha_change or sha == base["sha"])
     ):
         raise ExecutorError(
             EXIT_STALE, "STALE_SNAPSHOT", f"Source PR #{source['number']} base changed"
@@ -2580,29 +2846,46 @@ def _verify_source_pr(
             "STALE_SNAPSHOT",
             f"Source PR #{source['number']} is not owned by Dependabot",
         )
-
-
-def _validate_live_source_metadata(
-    pr: Mapping[str, Any], candidate: Mapping[str, Any]
-) -> None:
-    """Bind plan versions and impact to the current source PR body before mutation."""
-
-    ecosystem = _ecosystem_for_files(candidate["manifestPaths"])
-    head = pr.get("head")
-    head_ref = str(head.get("ref") or "") if isinstance(head, dict) else ""
-    dependencies = _parse_dependencies(
-        str(pr.get("title") or ""),
-        str(pr.get("body") or ""),
-        ecosystem,
-        head_ref,
-    )
-    if any(
-        item["fromVersion"] is None or item["toVersion"] is None
-        for item in dependencies
-    ):
+    if pr.get("merged_at") and not allow_merged:
         raise ExecutorError(
-            EXIT_STALE, "STALE_SNAPSHOT", "Live Dependabot versions cannot be parsed"
+            EXIT_BLOCKED,
+            "AMBIGUOUS_REMOTE",
+            f"Source PR #{source['number']} was merged concurrently",
         )
+    if require_open and str(pr.get("state") or "").lower() != "open":
+        raise ExecutorError(
+            EXIT_BLOCKED,
+            "AMBIGUOUS_REMOTE",
+            f"Source PR #{source['number']} is no longer open",
+        )
+
+
+def _validate_live_sources(
+    live_sources: Sequence[tuple[Mapping[str, Any], Sequence[str]]],
+    candidate: Mapping[str, Any],
+) -> None:
+    """Bind all planned source versions to current PR bodies per ecosystem."""
+
+    dependencies: list[dict[str, Any]] = []
+    for pr, manifest_paths in live_sources:
+        ecosystem = _ecosystem_for_files(manifest_paths)
+        head = pr.get("head")
+        head_ref = str(head.get("ref") or "") if isinstance(head, dict) else ""
+        parsed = _parse_dependencies(
+            str(pr.get("title") or ""),
+            str(pr.get("body") or ""),
+            ecosystem,
+            head_ref,
+        )
+        if any(
+            item["fromVersion"] is None or item["toVersion"] is None for item in parsed
+        ):
+            raise ExecutorError(
+                EXIT_STALE,
+                "STALE_SNAPSHOT",
+                "Live Dependabot versions cannot be parsed",
+            )
+        dependencies.extend(parsed)
 
     remaining = list(candidate["versions"])
     for dependency in dependencies:
@@ -2617,7 +2900,7 @@ def _validate_live_source_metadata(
             for index, version in enumerate(remaining)
             if _source_version_key(version) == key
         ]
-        if len(matches) != 1:
+        if not matches:
             raise ExecutorError(
                 EXIT_STALE,
                 "STALE_SNAPSHOT",
@@ -2661,6 +2944,43 @@ def _validate_live_source_metadata(
         raise ExecutorError(
             EXIT_STALE, "STALE_SNAPSHOT", "Live aggregate impact differs from the plan"
         )
+
+
+def _validate_live_source_metadata(
+    pr: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> None:
+    """Backward-compatible singleton live metadata validation."""
+
+    _contract(
+        len(candidate["sources"]) == 1,
+        "Multi-source candidates require per-source manifests",
+    )
+    _validate_live_sources([(pr, candidate["manifestPaths"])], candidate)
+
+
+def _live_source_manifests(
+    runner: Runner, repository: Mapping[str, Any], number: int
+) -> list[str]:
+    files_raw = _page_api(
+        runner,
+        repository["host"],
+        f"repos/{repository['nameWithOwner']}/pulls/{number}/files",
+    )
+    files = sorted(
+        {
+            _safe_path(str(item["filename"]))
+            for item in files_raw
+            if isinstance(item, dict) and "filename" in item
+        }
+    )
+    manifests, _ = _dependency_paths(files)
+    if not manifests:
+        raise ExecutorError(
+            EXIT_STALE,
+            "STALE_SNAPSHOT",
+            f"Source PR #{number} no longer contains a dependency manifest",
+        )
+    return manifests
 
 
 _CLOSE_MARKER_RE = re.compile(
@@ -2723,8 +3043,54 @@ def _replacement_close_marker(
 
 
 def _replacement_marker(plan: Mapping[str, Any]) -> str:
-    source = plan["candidate"]["sources"][0]
-    return f"<!-- resolve-dependabot-prs:v1 key={plan['sourceHash']} source={source['number']}@{source['headSha']} -->"
+    candidate = plan["candidate"]
+    header = (
+        "<!-- resolve-dependabot-prs:v1 "
+        f"key={plan['sourceHash']} plan={plan['planDigest']} "
+        f"tree={candidate['treeSha']} -->"
+    )
+    source_markers = [
+        (
+            "<!-- resolve-dependabot-prs:v1 source="
+            f"{source['number']}@{source['headSha']} "
+            f"plan={plan['planDigest']} tree={candidate['treeSha']} -->"
+        )
+        for source in candidate["sources"]
+    ]
+    return "\n".join([header, *source_markers])
+
+
+def _legacy_replacement_marker(plan: Mapping[str, Any]) -> str | None:
+    sources = plan["candidate"]["sources"]
+    if len(sources) != 1:
+        return None
+    source = sources[0]
+    return (
+        f"<!-- resolve-dependabot-prs:v1 key={plan['sourceHash']} "
+        f"source={source['number']}@{source['headSha']} -->"
+    )
+
+
+def _replacement_body(plan: Mapping[str, Any]) -> str:
+    candidate = plan["candidate"]
+    versions = "\n".join(
+        f"- `{version['name']}`: `{version['from']}` → `{version['to']}`"
+        for version in candidate["versions"]
+    )
+    validations = "\n".join(
+        f"- `{check['command']}`" for check in candidate["validation"]
+    )
+    release_review = "\n".join(
+        f"- `{item['subject']}`: {item['summary']} ({item['url']})"
+        for item in candidate["stabilityEvidence"]
+    )
+    return (
+        f"{_replacement_marker(plan)}\n\n"
+        "Consolidated Dependabot dependency update.\n\n"
+        f"## Versions\n\n{versions}\n\n"
+        f"## Release review\n\n{release_review}\n\n"
+        f"## Validation\n\n{validations}"
+    )
 
 
 class _Mutations:
@@ -2821,11 +3187,18 @@ def _validate_closure_predicate(
             if item["number"] == evidence["sourceNumber"]
         )
         required = re.compile(
+            r"<!-- resolve-dependabot-prs:v1 source="
+            + re.escape(f"{source['number']}@{source['headSha']}")
+            + r" plan=[0-9a-f]{64} tree=[0-9a-f]{40} -->"
+        )
+        legacy_required = re.compile(
             r"<!-- resolve-dependabot-prs:v1 key=[0-9a-f]{12} source="
             + re.escape(f"{source['number']}@{source['headSha']}")
             + r" -->"
         )
-        if required.search(str(replacement.get("body") or "")) is None:
+        body = str(replacement.get("body") or "")
+        legacy_matches = len(candidate["sources"]) == 1 and legacy_required.search(body)
+        if required.search(body) is None and not legacy_matches:
             raise ExecutorError(
                 EXIT_STALE,
                 "STALE_SNAPSHOT",
@@ -2851,7 +3224,7 @@ def _close_one_source(
     target = f"source:{number}@{source['headSha']}"
     operation = _operation(state, "close-source", target)
     pr = _get_pr(runner, repository, number)
-    _verify_source_pr(pr, candidate, source, allow_base_sha_change=allow_preclosed)
+    _verify_source_pr(pr, candidate, source)
     source_ref = f"{number}@{source['headSha']}"
     exact, conflict = _marker_status(
         _comments(runner, repository, number), source_ref, marker
@@ -2881,11 +3254,12 @@ def _close_one_source(
             "AMBIGUOUS_REMOTE",
             f"Source PR #{number} was merged concurrently",
         )
-    if state_name == "closed" and not exact and not allow_preclosed:
+    if state_name == "closed" and not exact:
+        context = "after replacement merge" if allow_preclosed else "before closure"
         raise ExecutorError(
             EXIT_BLOCKED,
             "AMBIGUOUS_REMOTE",
-            f"Source PR #{number} closed without the expected marker",
+            f"Source PR #{number} closed {context} without the expected marker",
         )
     if not exact:
         _attempt_operation(state, "close-source", target)
@@ -2944,19 +3318,43 @@ def _find_replacements(
         repository["host"],
         f"repos/{repository['nameWithOwner']}/pulls?state=all&head={urllib.parse.quote(owner + ':' + branch, safe=':')}",
     )
-    marker = _replacement_marker(plan)
+    identity_marker = f"<!-- resolve-dependabot-prs:v1 key={plan['sourceHash']} "
     pull_requests = [item for item in values if isinstance(item, dict)]
-    marked = [item for item in pull_requests if marker in str(item.get("body") or "")]
+    marked = [
+        item for item in pull_requests if identity_marker in str(item.get("body") or "")
+    ]
     if len(marked) != len(pull_requests):
         raise ExecutorError(
             EXIT_BLOCKED,
             "AMBIGUOUS_REMOTE",
             "Replacement branch is also used by an unmarked PR",
         )
+    expected_sources = {
+        f"{source['number']}@{source['headSha']}" for source in candidate["sources"]
+    }
+    for replacement in marked:
+        body = str(replacement.get("body") or "")
+        observed_sources = set(REPLACEMENT_SOURCE_MARKER_RE.findall(body))
+        observed_sources.update(
+            source_ref
+            for source_hash, source_ref in LEGACY_REPLACEMENT_MARKER_RE.findall(body)
+            if source_hash == plan["sourceHash"]
+        )
+        if observed_sources != expected_sources:
+            raise ExecutorError(
+                EXIT_BLOCKED,
+                "AMBIGUOUS_REMOTE",
+                "Replacement PR source markers differ from the current plan",
+            )
     return marked
 
 
-def _validate_replacement_pr(plan: Mapping[str, Any], pr: Mapping[str, Any]) -> None:
+def _validate_replacement_pr(
+    plan: Mapping[str, Any],
+    pr: Mapping[str, Any],
+    *,
+    require_current_marker: bool = False,
+) -> None:
     candidate = plan["candidate"]
     repository = candidate["repository"]
     head = pr.get("head")
@@ -3000,6 +3398,20 @@ def _validate_replacement_pr(plan: Mapping[str, Any], pr: Mapping[str, Any]) -> 
         raise ExecutorError(
             EXIT_BLOCKED, "AMBIGUOUS_REMOTE", "Replacement PR is owned by another actor"
         )
+    if require_current_marker:
+        body = str(pr.get("body") or "")
+        legacy_marker = _legacy_replacement_marker(plan)
+        legacy_merged_recovery = (
+            bool(pr.get("merged_at"))
+            and legacy_marker is not None
+            and legacy_marker in body
+        )
+        if _replacement_marker(plan) not in body and not legacy_merged_recovery:
+            raise ExecutorError(
+                EXIT_BLOCKED,
+                "AMBIGUOUS_REMOTE",
+                "Replacement PR body is stale for the current plan",
+            )
 
 
 def _publish_replacement(
@@ -3015,7 +3427,7 @@ def _publish_replacement(
     repository = candidate["repository"]
     branch = plan["destinationBranch"]
     commit = candidate["commitSha"]
-    marker = _replacement_marker(plan)
+    body = _replacement_body(plan)
     existing = _find_replacements(runner, plan)
     if len(existing) > 1:
         raise ExecutorError(
@@ -3096,13 +3508,26 @@ def _publish_replacement(
                 )
         _confirm_operation(state, "push", push_target, f"head={commit}")
         _save_state(state_path, state, now, dry_run=mutations.dry_run)
+        if pr is not None and not mutations.dry_run:
+            existing = _find_replacements(runner, plan)
+            if len(existing) != 1:
+                raise ExecutorError(
+                    EXIT_BLOCKED,
+                    "TRANSIENT",
+                    "Could not refresh replacement PR after push",
+                )
+            pr = existing[0]
+            _validate_replacement_pr(plan, pr)
     elif pr is not None or not branch_was_absent:
         _confirm_operation(state, "push", push_target, f"head={commit}")
 
     if pr is None:
         _attempt_operation(state, "create-replacement", "replacement")
-        title = f"Resolve Dependabot PR #{candidate['sources'][0]['number']}"
-        body = f"{marker}\n\nValidated replacement for Dependabot dependency updates."
+        title = (
+            "Consolidate Dependabot dependency updates"
+            if len(candidate["sources"]) > 1
+            else f"Resolve Dependabot PR #{candidate['sources'][0]['number']}"
+        )
         command = [
             "gh",
             "pr",
@@ -3137,10 +3562,46 @@ def _publish_replacement(
             )
         pr = existing[0]
         _validate_replacement_pr(plan, pr)
+    if str(pr.get("body") or "") != body:
+        number = pr.get("number")
+        if not isinstance(number, int):
+            raise ExecutorError(
+                EXIT_BLOCKED,
+                "AMBIGUOUS_REMOTE",
+                "Replacement PR number is unavailable for body update",
+            )
+        mutations.run(
+            [
+                "gh",
+                "pr",
+                "edit",
+                str(number),
+                "--repo",
+                _gh_repo_arg(repository),
+                "--body",
+                body,
+            ]
+        )
+        if mutations.dry_run:
+            return
+        existing = _find_replacements(runner, plan)
+        if len(existing) != 1:
+            raise ExecutorError(
+                EXIT_BLOCKED,
+                "TRANSIENT",
+                "Could not confirm replacement PR body update",
+            )
+        pr = existing[0]
+        _validate_replacement_pr(plan, pr, require_current_marker=True)
     number = pr.get("number")
     url = pr.get("html_url") or pr.get("url")
     head_sha = _pr_head_sha(pr)
-    if not isinstance(number, int) or not isinstance(url, str) or head_sha != commit:
+    if (
+        not isinstance(number, int)
+        or not isinstance(url, str)
+        or head_sha != commit
+        or _replacement_marker(plan) not in str(pr.get("body") or "")
+    ):
         raise ExecutorError(
             EXIT_BLOCKED,
             "AMBIGUOUS_REMOTE",
@@ -3456,6 +3917,7 @@ def _merge_pr(
     author_login: str,
     state_path: str | Path,
     now: str | None,
+    pre_merge_check: Callable[[], None] | None = None,
 ) -> tuple[str, bool]:
     candidate = plan["candidate"]
     repository = candidate["repository"]
@@ -3474,6 +3936,12 @@ def _merge_pr(
     required, approvals, queue = _protection_requirements(
         runner, repository, candidate["base"]["ref"]
     )
+    if queue and len(candidate["sources"]) > 1:
+        raise ExecutorError(
+            EXIT_PROTECTION,
+            "PROTECTION",
+            "Multi-source replacements cannot be submitted to a merge queue safely",
+        )
     state["status"] = "waiting-checks"
     _save_state(state_path, state, now, dry_run=mutations.dry_run)
     _wait_for_checks(
@@ -3504,6 +3972,8 @@ def _merge_pr(
                 "Repository permits no supported merge method",
             )
     _revalidate_base(runner, candidate)
+    if pre_merge_check is not None:
+        pre_merge_check()
     target = (
         "replacement"
         if candidate["mode"] == "replacement"
@@ -3553,10 +4023,29 @@ def _publish(
     candidate = plan["candidate"]
     repository = candidate["repository"]
     _revalidate_base(runner, candidate)
+    live_sources: list[tuple[Mapping[str, Any], Sequence[str]]] = []
     for source in candidate["sources"]:
         pr = _get_pr(runner, repository, source["number"])
-        _verify_source_pr(pr, candidate, source)
-        _validate_live_source_metadata(pr, candidate)
+        direct_update = (
+            candidate["decision"] == "update" and candidate["mode"] == "direct"
+        )
+        replacement_update = (
+            candidate["decision"] == "update" and candidate["mode"] == "replacement"
+        )
+        _verify_source_pr(
+            pr,
+            candidate,
+            source,
+            require_open=replacement_update,
+            allow_merged=direct_update,
+        )
+        manifests = (
+            candidate["manifestPaths"]
+            if len(candidate["sources"]) == 1
+            else _live_source_manifests(runner, repository, source["number"])
+        )
+        live_sources.append((pr, manifests))
+    _validate_live_sources(live_sources, candidate)
     if candidate["decision"] != "update":
         for evidence in candidate["closureEvidence"]:
             _validate_closure_predicate(runner, candidate, evidence)
@@ -3630,7 +4119,7 @@ def _finalize(
             pr,
             candidate,
             source,
-            allow_base_sha_change=bool(pr.get("merged_at")),
+            allow_merged=True,
         )
         _validate_live_source_metadata(pr, candidate)
         if pr.get("merged_at"):
@@ -3698,29 +4187,36 @@ def _finalize(
             "Finalize requires exactly one marked replacement PR",
         )
     replacement = replacements[0]
-    _validate_replacement_pr(plan, replacement)
+    _validate_replacement_pr(plan, replacement, require_current_marker=True)
     number = replacement.get("number")
     head_sha = _pr_head_sha(replacement)
     if not isinstance(number, int) or head_sha != candidate["commitSha"]:
         raise ExecutorError(
             EXIT_STALE, "STALE_SNAPSHOT", "Replacement identity changed"
         )
-    replacement_merged = bool(replacement.get("merged_at"))
+    live_sources = []
+    replacement_is_merged = bool(replacement.get("merged_at"))
     for source in candidate["sources"]:
         source_pr = _get_pr(runner, repository, source["number"])
         _verify_source_pr(
             source_pr,
             candidate,
             source,
-            allow_base_sha_change=replacement_merged,
+            require_open=not replacement_is_merged,
         )
-        _validate_live_source_metadata(source_pr, candidate)
+        manifests = (
+            candidate["manifestPaths"]
+            if len(candidate["sources"]) == 1
+            else _live_source_manifests(runner, repository, source["number"])
+        )
+        live_sources.append((source_pr, manifests))
+    _validate_live_sources(live_sources, candidate)
     state["replacement"] = {
         "number": number,
         "url": str(replacement.get("html_url") or replacement.get("url") or ""),
         "headSha": head_sha,
     }
-    if replacement.get("merged_at"):
+    if replacement_is_merged:
         merge_sha = replacement.get("merge_commit_sha")
         if not isinstance(merge_sha, str) or not SHA40_RE.fullmatch(merge_sha):
             raise ExecutorError(
@@ -3749,6 +4245,17 @@ def _finalize(
                 "State records a replacement merge that GitHub does not confirm",
             )
         _revalidate_base(runner, candidate)
+
+        def verify_sources_immediately_before_merge() -> None:
+            for planned_source in candidate["sources"]:
+                live_source = _get_pr(runner, repository, planned_source["number"])
+                _verify_source_pr(
+                    live_source,
+                    candidate,
+                    planned_source,
+                    require_open=True,
+                )
+
         merge_sha, _ = _merge_pr(
             runner,
             mutations,
@@ -3759,6 +4266,7 @@ def _finalize(
             repository["actorLogin"],
             state_path,
             now,
+            pre_merge_check=verify_sources_immediately_before_merge,
         )
         if mutations.dry_run:
             return

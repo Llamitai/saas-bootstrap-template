@@ -1,12 +1,16 @@
 {
   "mcpServers": {
+    "codegraph": {
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
     },
     "shadcn": {
-      "command": "npx",
-      "args": ["-y", "shadcn@latest", "mcp"]
+      "command": "./frontend/node_modules/.bin/shadcn",
+      "args": ["mcp"]
     },
     "playwright": {
       "command": "npx",
@@ -20,8 +24,11 @@
       }
     },
     "tailwindcss-server": {
-      "command": "npx",
-      "args": ["-y", "tailwindcss-mcp-server"]
+      "command": "./frontend/node_modules/.bin/tailwindcss-mcp",
+      "args": [],
+      "env": {
+        "TAILWIND_VERSION": "4"
+      }
     }
   }
 }

@@ -121,23 +121,33 @@ def pull_request(
     }
 
 
-def group_key(pr: dict[str, Any]) -> str:
+def group_key(*prs: dict[str, Any]) -> str:
+    ordered = sorted(prs, key=lambda item: item["number"])
+    first = ordered[0]
     payload = (
         "v1\n"
-        f"{pr['base']['repo']}\n"
-        f"{pr['base']['ref']}@{pr['base']['sha']}\n"
-        f"{pr['number']}@{pr['head']['sha']}\n"
+        f"{first['base']['repo']}\n"
+        f"{first['base']['ref']}@{BASE_SHA}\n"
+        + "".join(f"{pr['number']}@{pr['head']['sha']}\n" for pr in ordered)
     )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def group(pr: dict[str, Any]) -> dict[str, Any]:
+def group(*prs: dict[str, Any]) -> dict[str, Any]:
+    ordered = sorted(prs, key=lambda item: item["number"])
+    first = ordered[0]
     return {
-        "groupKey": group_key(pr),
-        "base": deepcopy(pr["base"]),
-        "prNumbers": [pr["number"]],
-        "manifestPaths": list(pr["manifests"]),
-        "observedAggregateImpact": pr["observedAggregateImpact"],
+        "groupKey": group_key(*ordered),
+        "base": {
+            "repo": first["base"]["repo"],
+            "ref": first["base"]["ref"],
+            "sha": BASE_SHA,
+        },
+        "prNumbers": [pr["number"] for pr in ordered],
+        "manifestPaths": sorted({path for pr in ordered for path in pr["manifests"]}),
+        "observedAggregateImpact": executor.aggregate_impact(
+            [pr["observedAggregateImpact"] for pr in ordered]
+        ),
     }
 
 
@@ -145,6 +155,16 @@ def inventory(
     *prs: dict[str, Any],
     overlaps: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    safe: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    singleton: list[list[dict[str, Any]]] = []
+    for pr in prs:
+        if pr["observedAggregateImpact"] in {"patch", "minor"} and all(
+            item["prerelease"] is False for item in pr["dependencies"]
+        ):
+            safe.setdefault((pr["base"]["repo"], pr["base"]["ref"]), []).append(pr)
+        else:
+            singleton.append([pr])
+    grouped = [*safe.values(), *singleton]
     return {
         "schemaVersion": 1,
         "complete": True,
@@ -153,7 +173,7 @@ def inventory(
         "pullRequests": sorted(deepcopy(prs), key=lambda item: item["number"]),
         "overlaps": overlaps or [],
         "groups": sorted(
-            (group(pr) for pr in prs),
+            (group(*items) for items in grouped),
             key=lambda item: item["groupKey"],
         ),
         "errors": [],
@@ -185,7 +205,7 @@ def release_evidence(subject: str) -> dict[str, Any]:
         "kind": "release",
         "subject": subject,
         "url": f"https://example.invalid/releases/{subject}",
-        "summary": "Stable release with supported runtime requirements.",
+        "summary": "breaking=none; adaptation=not-required",
         "contentSha256": CONTENT_SHA,
     }
 
@@ -223,7 +243,17 @@ def update_candidate(
         "decision": "update",
         "closureReason": None,
         "parentPlanDigest": None,
-        "stabilityEvidence": [release_evidence(dep["name"])],
+        "stabilityEvidence": [
+            release_evidence(
+                executor._release_subject(
+                    {
+                        "name": dep["name"],
+                        "ecosystem": dep["ecosystem"],
+                        "to": dep["toVersion"],
+                    }
+                )
+            )
+        ],
         "closureEvidence": [],
         "mode": mode,
         "targetPrNumber": pr["number"] if mode == "direct" else None,
@@ -232,6 +262,71 @@ def update_candidate(
         "validation": [
             {
                 "command": "pnpm -C frontend verify",
+                "exitCode": 0,
+                "treeSha": tree_sha,
+                "finishedAt": NOW,
+            }
+        ],
+    }
+
+
+def batch_candidate(
+    group_prs: list[dict[str, Any]],
+    *,
+    selected_prs: list[dict[str, Any]] | None = None,
+    tree_sha: str = PATCH_TREE_SHA,
+    commit_sha: str = PATCH_HEAD_SHA,
+) -> dict[str, Any]:
+    selected = sorted(selected_prs or group_prs, key=lambda item: item["number"])
+    versions = sorted(
+        [
+            {
+                "name": dep["name"],
+                "ecosystem": dep["ecosystem"],
+                "from": dep["fromVersion"],
+                "to": dep["toVersion"],
+                "impact": dep["impact"],
+                "prerelease": dep["prerelease"],
+            }
+            for pr in selected
+            for dep in pr["dependencies"]
+        ],
+        key=executor._version_key,
+    )
+    evidence_subjects = sorted({executor._release_subject(item) for item in versions})
+    observed_impact = executor.aggregate_impact(
+        [pr["observedAggregateImpact"] for pr in selected]
+    )
+    return {
+        "schemaVersion": 1,
+        "repository": repository(),
+        "base": deepcopy(group(*group_prs)["base"]),
+        "groupKey": group_key(*group_prs),
+        "sources": [
+            {"number": pr["number"], "headSha": pr["head"]["sha"]} for pr in selected
+        ],
+        "manifestPaths": sorted({path for pr in selected for path in pr["manifests"]}),
+        "versions": versions,
+        "additionalDependencies": [],
+        "observedAggregateImpact": observed_impact,
+        "effectiveImpact": (
+            observed_impact if observed_impact in {"patch", "minor"} else "major"
+        ),
+        "impactRationale": "Derived from all selected stable source transitions.",
+        "decision": "update",
+        "closureReason": None,
+        "parentPlanDigest": None,
+        "stabilityEvidence": [
+            release_evidence(subject) for subject in evidence_subjects
+        ],
+        "closureEvidence": [],
+        "mode": "replacement",
+        "targetPrNumber": None,
+        "commitSha": commit_sha,
+        "treeSha": tree_sha,
+        "validation": [
+            {
+                "command": "just verify",
                 "exitCode": 0,
                 "treeSha": tree_sha,
                 "finishedAt": NOW,
@@ -456,6 +551,158 @@ class VersionClassificationTests(unittest.TestCase):
                 self.assertIsNone(prerelease)
 
 
+class DependencyParsingTests(unittest.TestCase):
+    def test_trusted_body_surface__preserves_only_separated_top_level_text(
+        self,
+    ) -> None:
+        body = (
+            "before<DETAILS open><details>nested</details>hidden</DETAILS>after\n"
+            '<details>first</details><details class="notes">second</details>end'
+        )
+
+        surface, balanced = executor._trusted_body_surface(body)
+
+        self.assertTrue(balanced)
+        self.assertEqual(surface, "before\nafter\n\n\nend")
+
+    def test_trusted_body_surface__rejects_unbalanced_tags(self) -> None:
+        for body in ("before<details>hidden", "before</details>after"):
+            with self.subTest(body=body):
+                self.assertEqual(executor._trusted_body_surface(body), ("", False))
+
+    def test_parse_dependencies__ignores_upstream_bumps_in_details(self) -> None:
+        body = """Bumps [axios](https://example.test/axios) from 1.18.1 to 1.19.0.
+<details>
+<summary>Commits</summary>
+bump actions/setup-node from 6.4.0 to 7.0.0
+</details>
+"""
+
+        dependencies = executor._parse_dependencies(
+            "Bump axios from 1.18.1 to 1.19.0", body, "npm", "dependabot/axios"
+        )
+
+        self.assertEqual(len(dependencies), 1)
+        self.assertEqual(dependencies[0]["name"], "axios")
+        self.assertEqual(dependencies[0]["fromVersion"], "1.18.1")
+        self.assertEqual(dependencies[0]["toVersion"], "1.19.0")
+        self.assertEqual(dependencies[0]["impact"], "minor")
+
+    def test_parse_dependencies__parses_grouped_updates_around_details(self) -> None:
+        body = """Bumps [react](https://example.test/react) and [@types/react](https://example.test/types). These dependencies needed to be updated together.
+Updates `react` from 19.2.7 to 19.2.8
+<details><summary>Release notes</summary>hidden</details>
+Updates `@types/react` from 19.2.17 to 19.2.18
+<details>Updates `angular` from 20.0.0 to 21.0.0</details>
+"""
+
+        dependencies = executor._parse_dependencies(
+            "Bump react and @types/react in /docs",
+            body,
+            "npm",
+            "dependabot/npm_and_yarn/docs/multi",
+        )
+
+        self.assertEqual(
+            [(item["name"], item["impact"]) for item in dependencies],
+            [("@types/react", "patch"), ("react", "patch")],
+        )
+
+    def test_parse_dependencies__does_not_join_fragments_across_details(self) -> None:
+        body = "Updates `invented` from 1<details>upstream</details> to 2"
+
+        dependencies = executor._parse_dependencies(
+            "Bump grouped dependencies", body, "npm", "dependabot/multi"
+        )
+
+        self.assertEqual(len(dependencies), 1)
+        self.assertIsNone(dependencies[0]["fromVersion"])
+        self.assertIsNone(dependencies[0]["toVersion"])
+
+    def test_parse_dependencies__falls_back_to_title_for_unbalanced_body(self) -> None:
+        dependencies = executor._parse_dependencies(
+            "Bump axios from 1.18.1 to 1.19.0",
+            "Bumps [wrong](https://example.test) from 1.0.0 to 2.0.0<details>",
+            "npm",
+            "dependabot/axios",
+        )
+
+        self.assertEqual(len(dependencies), 1)
+        self.assertEqual(dependencies[0]["name"], "axios")
+        self.assertEqual(dependencies[0]["impact"], "minor")
+
+    def test_parse_dependencies__conflicting_identity_discards_body(self) -> None:
+        body = """Updates `React` from 19.2.7 to 19.2.8
+Updates `react` from 19.2.7 to 20.0.0
+"""
+
+        dependencies = executor._parse_dependencies(
+            "Bump grouped dependencies", body, "npm", "dependabot/multi"
+        )
+
+        self.assertEqual(len(dependencies), 1)
+        self.assertIsNone(dependencies[0]["fromVersion"])
+        self.assertIsNone(dependencies[0]["toVersion"])
+
+    def test_parse_dependencies__deduplicates_equivalent_names_deterministically(
+        self,
+    ) -> None:
+        body = """Updates `Foo.Bar` from 1.0.0 to 1.1.0
+Updates `foo_bar` from 1.0.0 to 1.1.0
+"""
+
+        dependencies = executor._parse_dependencies(
+            "Bump grouped dependencies", body, "uv", "dependabot/uv/multi"
+        )
+
+        self.assertEqual(len(dependencies), 1)
+        self.assertEqual(dependencies[0]["name"], "Foo.Bar")
+        self.assertEqual(dependencies[0]["impact"], "minor")
+
+    def test_parse_dependencies__raw_semver_signal_is_unique_and_singleton_only(
+        self,
+    ) -> None:
+        old_sha = "8" * 40
+        new_sha = "9" * 40
+        single = executor._parse_dependencies(
+            f"Bump actions/checkout from {old_sha} to {new_sha}",
+            (
+                f"Bumps [actions/checkout](https://example.test) from {old_sha} "
+                f"to {new_sha}\nversion-update:semver-patch\n"
+                "<details>version-update:semver-major</details>"
+            ),
+            "github-actions",
+            "dependabot/github_actions/checkout",
+        )
+        conflicting = executor._parse_dependencies(
+            f"Bump actions/checkout from {old_sha} to {new_sha}",
+            (
+                f"Bumps [actions/checkout](https://example.test) from {old_sha} "
+                f"to {new_sha}\nversion-update:semver-patch\n"
+                "version-update:semver-minor"
+            ),
+            "github-actions",
+            "dependabot/github_actions/checkout",
+        )
+        grouped = executor._parse_dependencies(
+            "Bump action group",
+            (
+                f"Updates `actions/checkout` from {old_sha} to {new_sha}\n"
+                f"Updates `actions/setup-node` from {old_sha} to {new_sha}\n"
+                "version-update:semver-patch"
+            ),
+            "github-actions",
+            "dependabot/github_actions/group",
+        )
+
+        self.assertEqual(single[0]["rawUpdateType"], "version-update:semver-patch")
+        self.assertEqual(single[0]["impact"], "patch")
+        self.assertIsNone(conflicting[0]["rawUpdateType"])
+        self.assertEqual(conflicting[0]["impact"], "unknown")
+        self.assertTrue(all(item["rawUpdateType"] is None for item in grouped))
+        self.assertTrue(all(item["impact"] == "unknown" for item in grouped))
+
+
 class InspectTests(unittest.TestCase):
     def test_inspect_repository__fatal_git_error_returns_unplanable_envelope(
         self,
@@ -477,6 +724,49 @@ class InspectTests(unittest.TestCase):
         self.assertEqual(result["errors"][0]["code"], "REPO_MISMATCH")
         self.assertEqual(runner.mutating_calls, [])
         runner.assert_exhausted()
+
+    def test_non_default_base_api_failure_is_reported_as_incomplete_data(self) -> None:
+        pr = pull_request(
+            number=14,
+            head_sha=PATCH_HEAD_SHA,
+            dependency_value=dependency(
+                name="react",
+                from_version="19.1.0",
+                to_version="19.1.1",
+                impact="patch",
+            ),
+        )
+        pr["base"]["ref"] = "maintenance"
+        errors: list[dict[str, Any]] = []
+
+        with mock.patch.object(
+            executor,
+            "_current_ref_sha",
+            side_effect=executor.ExecutorError(
+                executor.EXIT_INCOMPLETE,
+                "API",
+                "maintenance branch lookup failed",
+            ),
+        ):
+            branch_shas = executor._resolve_group_branch_shas(
+                [pr], repository(), FakeRunner(executor.CommandResult), errors
+            )
+
+        self.assertEqual(branch_shas, {})
+        self.assertEqual(
+            errors,
+            [
+                {
+                    "code": "API",
+                    "message": (
+                        "Could not resolve base branch maintenance: "
+                        "maintenance branch lookup failed"
+                    ),
+                    "prNumber": 14,
+                    "transient": True,
+                }
+            ],
+        )
 
     def test_inspect_repository__shared_lockfile_keeps_singleton_groups(self) -> None:
         runner = FakeRunner(executor.CommandResult)
@@ -614,6 +904,739 @@ class InspectTests(unittest.TestCase):
         )
         self.assertEqual(runner.mutating_calls, [])
         runner.assert_exhausted()
+
+
+class BatchResolutionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.npm_pr = pull_request(
+            number=20,
+            head_sha="8" * 40,
+            dependency_value=dependency(
+                name="react",
+                from_version="19.2.7",
+                to_version="19.2.8",
+                impact="patch",
+            ),
+        )
+        self.uv_pr = pull_request(
+            number=21,
+            head_sha="9" * 40,
+            dependency_value=dependency(
+                name="vulture",
+                from_version="2.14",
+                to_version="2.16",
+                impact="minor",
+                ecosystem="uv",
+            ),
+            manifest="backend/pyproject.toml",
+            lockfile="backend/uv.lock",
+        )
+
+    def test_inventory_groups_stable_sources_by_current_base_ref(self) -> None:
+        self.uv_pr["base"]["sha"] = "a" * 40
+        major = pull_request(
+            number=22,
+            head_sha="b" * 40,
+            dependency_value=dependency(
+                name="next",
+                from_version="15.4.0",
+                to_version="16.0.0",
+                impact="major",
+            ),
+        )
+        prerelease = pull_request(
+            number=23,
+            head_sha="c" * 40,
+            dependency_value=dependency(
+                name="vite",
+                from_version="8.2.1",
+                to_version="8.3.0-rc.1",
+                impact="minor",
+                prerelease=True,
+            ),
+        )
+        parser_error = pull_request(
+            number=24,
+            head_sha="d" * 40,
+            dependency_value=dependency(
+                name="axios",
+                from_version="1.19.0",
+                to_version="1.19.1",
+                impact="patch",
+            ),
+        )
+
+        groups = executor._build_inventory_groups(
+            [self.npm_pr, self.uv_pr, major, prerelease, parser_error],
+            {parser_error["number"]},
+            {(NAME_WITH_OWNER, "main"): BASE_SHA},
+        )
+
+        self.assertEqual(
+            sorted(item["prNumbers"] for item in groups),
+            [[20, 21], [22], [23], [24]],
+        )
+        batch = next(item for item in groups if item["prNumbers"] == [20, 21])
+        self.assertEqual(batch["base"]["sha"], BASE_SHA)
+        self.assertEqual(batch["observedAggregateImpact"], "minor")
+
+    def test_build_plan_consolidates_sources_and_allows_safe_subset(self) -> None:
+        snapshot = inventory(self.npm_pr, self.uv_pr)
+        full = batch_candidate([self.npm_pr, self.uv_pr])
+
+        plan = executor.build_plan(snapshot, full, created_at=NOW)
+
+        self.assertEqual(plan["approval"]["kind"], "none")
+        self.assertEqual(
+            plan["operations"][-2:],
+            [
+                {
+                    "name": "close-source",
+                    "target": f"source:20@{self.npm_pr['head']['sha']}",
+                },
+                {
+                    "name": "close-source",
+                    "target": f"source:21@{self.uv_pr['head']['sha']}",
+                },
+            ],
+        )
+        executor._verify_plan_structure(plan)
+
+        subset = batch_candidate([self.npm_pr, self.uv_pr], selected_prs=[self.npm_pr])
+        subset_plan = executor.build_plan(snapshot, subset, created_at=NOW)
+        self.assertEqual(len(subset_plan["candidate"]["sources"]), 1)
+        self.assertEqual(
+            subset_plan["candidate"]["manifestPaths"], ["frontend/package.json"]
+        )
+
+    def test_build_plan_rejects_direct_batch_and_incomplete_evidence(self) -> None:
+        snapshot = inventory(self.npm_pr, self.uv_pr)
+        direct = batch_candidate([self.npm_pr, self.uv_pr])
+        direct["mode"] = "direct"
+        direct["targetPrNumber"] = self.npm_pr["number"]
+        direct["commitSha"] = self.npm_pr["head"]["sha"]
+
+        assert_contract_error(
+            self, lambda: executor.build_plan(snapshot, direct, created_at=NOW)
+        )
+
+        missing = batch_candidate([self.npm_pr, self.uv_pr])
+        missing["stabilityEvidence"] = missing["stabilityEvidence"][:1]
+        assert_contract_error(
+            self, lambda: executor.build_plan(snapshot, missing, created_at=NOW)
+        )
+
+    def test_release_evidence_requires_truthful_structured_summary(self) -> None:
+        candidate = batch_candidate([self.npm_pr, self.uv_pr])
+        candidate["stabilityEvidence"][0]["summary"] = (
+            "breaking=applicable; adaptation=not-required"
+        )
+
+        assert_contract_error(
+            self,
+            lambda: executor.build_plan(
+                inventory(self.npm_pr, self.uv_pr), candidate, created_at=NOW
+            ),
+        )
+
+        evidence = deepcopy(candidate["stabilityEvidence"][0])
+        evidence["summary"] = "breaking=not-applicable; adaptation=not-required"
+        self.assertEqual(
+            executor._validate_release_evidence([evidence], structured_summary=True),
+            [evidence],
+        )
+        evidence["summary"] = "breaking=none; adaptation=updated configuration"
+        self.assertEqual(
+            executor._validate_release_evidence([evidence], structured_summary=True),
+            [evidence],
+        )
+
+    def test_singleton_v1_keeps_legacy_release_summary_compatibility(self) -> None:
+        candidate = update_candidate(
+            self.npm_pr,
+            effective_impact="patch",
+            tree_sha=PATCH_TREE_SHA,
+        )
+        candidate["stabilityEvidence"][0]["summary"] = (
+            "Stable patch release with no migration required."
+        )
+        candidate["stabilityEvidence"][0]["subject"] = "react"
+
+        plan = executor.build_plan(inventory(self.npm_pr), candidate, created_at=NOW)
+
+        executor._verify_plan_structure(plan)
+
+    def test_plan_rejects_conflicting_targets_in_same_manifest(self) -> None:
+        other = pull_request(
+            number=25,
+            head_sha="e" * 40,
+            dependency_value=dependency(
+                name="React",
+                from_version="19.2.7",
+                to_version="19.3.0",
+                impact="minor",
+            ),
+        )
+        candidate = batch_candidate([self.npm_pr, other])
+
+        assert_contract_error(
+            self,
+            lambda: executor.build_plan(
+                inventory(self.npm_pr, other), candidate, created_at=NOW
+            ),
+        )
+
+    def test_live_revalidation_uses_each_source_ecosystem(self) -> None:
+        action = pull_request(
+            number=26,
+            head_sha="f" * 40,
+            dependency_value=dependency(
+                name="actions/checkout",
+                from_version="a" * 40,
+                to_version="b" * 40,
+                impact="patch",
+                ecosystem="github-actions",
+            ),
+            manifest=".github/workflows/ci.yml",
+            lockfile=".github/dependabot.yml",
+        )
+        action["body"] += "\nversion-update:semver-patch"
+        candidate = batch_candidate([self.npm_pr, self.uv_pr, action])
+
+        executor._validate_live_sources(
+            [
+                (self.npm_pr, self.npm_pr["manifests"]),
+                (self.uv_pr, self.uv_pr["manifests"]),
+                (action, action["manifests"]),
+            ],
+            candidate,
+        )
+
+    def test_source_revalidation_ignores_historical_base_sha(self) -> None:
+        candidate = batch_candidate([self.npm_pr, self.uv_pr])
+        live = {
+            "head": {"sha": self.npm_pr["head"]["sha"]},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": "a" * 40,
+            },
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+
+        executor._verify_source_pr(live, candidate, candidate["sources"][0])
+
+    def test_state_tracks_partial_and_complete_source_closure(self) -> None:
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr),
+            batch_candidate([self.npm_pr, self.uv_pr]),
+            created_at=NOW,
+        )
+        state = executor._new_state(plan, NOW)
+        state["replacement"] = {
+            "number": 99,
+            "url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "headSha": plan["candidate"]["commitSha"],
+        }
+        state["mergeCommitSha"] = MERGE_SHA
+        state["status"] = "merged"
+        state["sources"][0]["status"] = "closed"
+
+        executor._validate_state_shape(deepcopy(state))
+        state["status"] = "sources-closed"
+        assert_contract_error(self, lambda: executor._validate_state_shape(state))
+        state["sources"][1]["status"] = "closed"
+        executor._validate_state_shape(state)
+
+    def test_replacement_marker_binds_plan_tree_and_every_source(self) -> None:
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr),
+            batch_candidate([self.npm_pr, self.uv_pr]),
+            created_at=NOW,
+        )
+
+        marker = executor._replacement_marker(plan)
+
+        self.assertIn(f"plan={plan['planDigest']}", marker)
+        self.assertIn(f"tree={plan['candidate']['treeSha']}", marker)
+        for source in plan["candidate"]["sources"]:
+            self.assertIn(f"source={source['number']}@{source['headSha']}", marker)
+
+    def test_publish_migrates_legacy_singleton_replacement_marker(self) -> None:
+        candidate = update_candidate(
+            self.npm_pr,
+            effective_impact="patch",
+            tree_sha=PATCH_TREE_SHA,
+            mode="replacement",
+        )
+        plan = executor.build_plan(inventory(self.npm_pr), candidate, created_at=NOW)
+        legacy_marker = executor._legacy_replacement_marker(plan)
+        self.assertIsNotNone(legacy_marker)
+        remote_pr = {
+            "number": 99,
+            "state": "open",
+            "merged_at": None,
+            "html_url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "body": legacy_marker,
+            "user": {"login": "automation-user", "type": "User"},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": BASE_SHA,
+            },
+            "head": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": plan["destinationBranch"],
+                "sha": candidate["commitSha"],
+            },
+        }
+        runner = FakeRunner(executor.CommandResult)
+
+        def edit_body(call: Any) -> object:
+            remote_pr["body"] = call.args[call.args.index("--body") + 1]
+            return runner.result()
+
+        runner.when(
+            lambda call: call.args[:4] == ("gh", "pr", "edit", "99"),
+            edit_body,
+            description="migrate legacy replacement body",
+            times=1,
+        )
+        state = executor._new_state(plan, NOW)
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(
+                executor,
+                "_page_api",
+                side_effect=lambda *_args, **_kwargs: [deepcopy(remote_pr)],
+            ),
+            mock.patch.object(
+                executor,
+                "_current_ref_sha",
+                return_value=candidate["commitSha"],
+            ),
+        ):
+            executor._publish_replacement(
+                runner,
+                executor._Mutations(runner, False),
+                plan,
+                state,
+                Path(temporary),
+                Path(temporary) / "state.json",
+                NOW,
+            )
+
+        self.assertEqual(remote_pr["body"], executor._replacement_body(plan))
+        self.assertEqual(state["status"], "published")
+        self.assertEqual(state["replacement"]["number"], 99)
+        runner.assert_exhausted()
+
+    def test_legacy_singleton_marker_still_proves_merged_replacement(self) -> None:
+        evidence = replacement_merged_evidence(self.npm_pr)
+        candidate = close_candidate(
+            self.npm_pr,
+            reason="duplicate-merged",
+            evidence=evidence,
+        )
+        source = candidate["sources"][0]
+        replacement = {
+            "merged_at": NOW,
+            "merge_commit_sha": MERGE_SHA,
+            "html_url": evidence["url"],
+            "body": (
+                "<!-- resolve-dependabot-prs:v1 key=aaaaaaaaaaaa "
+                f"source={source['number']}@{source['headSha']} -->"
+            ),
+            "user": {"login": "automation-user", "type": "User"},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+            },
+        }
+
+        with mock.patch.object(executor, "_get_pr", return_value=replacement):
+            executor._validate_closure_predicate(
+                FakeRunner(executor.CommandResult), candidate, evidence
+            )
+
+    def test_finalize_rejects_open_legacy_singleton_marker(self) -> None:
+        candidate = update_candidate(
+            self.npm_pr,
+            effective_impact="patch",
+            tree_sha=PATCH_TREE_SHA,
+            mode="replacement",
+        )
+        plan = executor.build_plan(inventory(self.npm_pr), candidate, created_at=NOW)
+        replacement = {
+            "number": 99,
+            "state": "open",
+            "merged_at": None,
+            "html_url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "body": executor._legacy_replacement_marker(plan),
+            "user": {"login": "automation-user", "type": "User"},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": BASE_SHA,
+            },
+            "head": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": plan["destinationBranch"],
+                "sha": candidate["commitSha"],
+            },
+        }
+        state = executor._new_state(plan, NOW)
+        state["status"] = "published"
+        state["replacement"] = {
+            "number": 99,
+            "url": replacement["html_url"],
+            "headSha": candidate["commitSha"],
+        }
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(
+                executor, "_find_replacements", return_value=[replacement]
+            ),
+            self.assertRaises(executor.ExecutorError) as caught,
+        ):
+            executor._finalize(
+                FakeRunner(executor.CommandResult),
+                executor._Mutations(FakeRunner(executor.CommandResult), False),
+                plan,
+                state,
+                Path(temporary) / "state.json",
+                NOW,
+            )
+
+        self.assertEqual(caught.exception.code, "AMBIGUOUS_REMOTE")
+
+    def test_replacement_lookup_rejects_same_key_with_different_sources(self) -> None:
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr),
+            batch_candidate([self.npm_pr, self.uv_pr]),
+            created_at=NOW,
+        )
+        omitted = plan["candidate"]["sources"][1]
+        stale_body = executor._replacement_body(plan).replace(
+            (
+                "<!-- resolve-dependabot-prs:v1 "
+                f"source={omitted['number']}@{omitted['headSha']} "
+                f"plan={plan['planDigest']} tree={plan['candidate']['treeSha']} -->\n"
+            ),
+            "",
+        )
+
+        with mock.patch.object(
+            executor,
+            "_page_api",
+            return_value=[{"number": 99, "body": stale_body}],
+        ):
+            with self.assertRaises(executor.ExecutorError) as caught:
+                executor._find_replacements(FakeRunner(executor.CommandResult), plan)
+
+        self.assertEqual(caught.exception.code, "AMBIGUOUS_REMOTE")
+
+    def test_pending_batch_sources_must_remain_open_and_unmerged(self) -> None:
+        candidate = batch_candidate([self.npm_pr, self.uv_pr])
+        source = candidate["sources"][0]
+        live = {
+            "state": "closed",
+            "merged_at": None,
+            "head": {"sha": source["headSha"]},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+            },
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+
+        with self.assertRaises(executor.ExecutorError) as closed:
+            executor._verify_source_pr(live, candidate, source, require_open=True)
+        self.assertEqual(closed.exception.code, "AMBIGUOUS_REMOTE")
+
+        live["state"] = "open"
+        live["merged_at"] = NOW
+        with self.assertRaises(executor.ExecutorError) as merged:
+            executor._verify_source_pr(live, candidate, source, require_open=True)
+        self.assertEqual(merged.exception.code, "AMBIGUOUS_REMOTE")
+
+    def test_multi_source_replacement_never_enters_merge_queue(self) -> None:
+        candidate = batch_candidate([self.npm_pr, self.uv_pr])
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr), candidate, created_at=NOW
+        )
+        state = executor._new_state(plan, NOW)
+        replacement = {
+            "state": "open",
+            "merged_at": None,
+            "head": {"sha": candidate["commitSha"]},
+        }
+        pre_merge_check = mock.Mock()
+        runner = FakeRunner(executor.CommandResult)
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(executor, "_get_pr", return_value=replacement),
+            mock.patch.object(
+                executor,
+                "_protection_requirements",
+                return_value=(set(), 0, True),
+            ),
+            self.assertRaises(executor.ExecutorError) as caught,
+        ):
+            executor._merge_pr(
+                runner,
+                executor._Mutations(runner, False),
+                plan,
+                state,
+                99,
+                candidate["commitSha"],
+                "automation-user",
+                Path(temporary) / "state.json",
+                NOW,
+                pre_merge_check=pre_merge_check,
+            )
+
+        self.assertEqual(caught.exception.code, "PROTECTION")
+        pre_merge_check.assert_not_called()
+        self.assertEqual(runner.mutating_calls, [])
+
+    def test_closed_source_without_executor_marker_is_never_claimed(self) -> None:
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr),
+            batch_candidate([self.npm_pr, self.uv_pr]),
+            created_at=NOW,
+        )
+        state = executor._new_state(plan, NOW)
+        state["status"] = "merged"
+        state["mergeCommitSha"] = MERGE_SHA
+        source = plan["candidate"]["sources"][0]
+        live = {
+            "state": "closed",
+            "merged_at": None,
+            "head": {"sha": source["headSha"]},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+            },
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+        runner = FakeRunner(executor.CommandResult)
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(executor, "_get_pr", return_value=live),
+            mock.patch.object(executor, "_comments", return_value=[]),
+            self.assertRaises(executor.ExecutorError) as caught,
+        ):
+            executor._close_one_source(
+                runner,
+                executor._Mutations(runner, False),
+                plan,
+                state,
+                source,
+                "expected marker",
+                allow_preclosed=True,
+                state_path=Path(temporary) / "state.json",
+                now=NOW,
+            )
+
+        self.assertEqual(caught.exception.code, "AMBIGUOUS_REMOTE")
+        self.assertEqual(runner.mutating_calls, [])
+
+    def test_publish_fast_forward_updates_existing_replacement_body(self) -> None:
+        first_candidate = batch_candidate(
+            [self.npm_pr, self.uv_pr],
+            commit_sha="a" * 40,
+            tree_sha="b" * 40,
+        )
+        first_plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr), first_candidate, created_at=NOW
+        )
+        next_candidate = batch_candidate(
+            [self.npm_pr, self.uv_pr],
+            commit_sha="c" * 40,
+            tree_sha="d" * 40,
+        )
+        next_plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr), next_candidate, created_at=LATER
+        )
+        self.assertEqual(first_plan["sourceHash"], next_plan["sourceHash"])
+        old_pr = {
+            "number": 99,
+            "state": "open",
+            "merged_at": None,
+            "html_url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "body": executor._replacement_body(first_plan),
+            "user": {"login": "automation-user", "type": "User"},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": BASE_SHA,
+            },
+            "head": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": next_plan["destinationBranch"],
+                "sha": first_candidate["commitSha"],
+            },
+        }
+        pushed_pr = deepcopy(old_pr)
+        pushed_pr["head"]["sha"] = next_candidate["commitSha"]
+        current_pr = deepcopy(pushed_pr)
+        current_pr["body"] = executor._replacement_body(next_plan)
+        runner = FakeRunner(executor.CommandResult)
+        runner.expect(
+            ["git", "cat-file", "-e", f"{first_candidate['commitSha']}^{{commit}}"]
+        )
+        runner.expect(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                first_candidate["commitSha"],
+                next_candidate["commitSha"],
+            ]
+        )
+        runner.expect(
+            [
+                "git",
+                "push",
+                "origin",
+                f"{next_candidate['commitSha']}:refs/heads/{next_plan['destinationBranch']}",
+            ],
+            mutating=True,
+        )
+        runner.expect(
+            [
+                "gh",
+                "pr",
+                "edit",
+                "99",
+                "--repo",
+                GH_REPO,
+                "--body",
+                executor._replacement_body(next_plan),
+            ],
+            mutating=True,
+        )
+        state = executor._new_state(next_plan, NOW)
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(
+                executor,
+                "_find_replacements",
+                side_effect=[[old_pr], [pushed_pr], [current_pr]],
+            ),
+            mock.patch.object(
+                executor,
+                "_current_ref_sha",
+                side_effect=[first_candidate["commitSha"], next_candidate["commitSha"]],
+            ),
+        ):
+            executor._publish_replacement(
+                runner,
+                executor._Mutations(runner, False),
+                next_plan,
+                state,
+                Path(temporary),
+                Path(temporary) / "state.json",
+                NOW,
+            )
+
+        self.assertEqual(state["status"], "published")
+        self.assertEqual(state["replacement"]["headSha"], next_candidate["commitSha"])
+        runner.assert_exhausted()
+
+    def test_finalize_closes_every_source_only_after_confirmed_batch_merge(
+        self,
+    ) -> None:
+        candidate = batch_candidate([self.npm_pr, self.uv_pr])
+        plan = executor.build_plan(
+            inventory(self.npm_pr, self.uv_pr), candidate, created_at=NOW
+        )
+        state = executor._new_state(plan, NOW)
+        state["status"] = "published"
+        state["replacement"] = {
+            "number": 99,
+            "url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "headSha": candidate["commitSha"],
+        }
+        replacement = {
+            "number": 99,
+            "state": "closed",
+            "merged_at": NOW,
+            "merge_commit_sha": MERGE_SHA,
+            "html_url": f"https://github.com/{NAME_WITH_OWNER}/pull/99",
+            "body": executor._replacement_body(plan),
+            "user": {"login": "automation-user", "type": "User"},
+            "base": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": MERGE_SHA,
+            },
+            "head": {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": plan["destinationBranch"],
+                "sha": candidate["commitSha"],
+            },
+        }
+        live_prs = []
+        for pr in (self.npm_pr, self.uv_pr):
+            live = deepcopy(pr)
+            live["state"] = "open"
+            live["merged_at"] = None
+            live["user"] = {"login": "dependabot[bot]", "type": "Bot"}
+            live["base"] = {
+                "repo": {"full_name": NAME_WITH_OWNER},
+                "ref": "main",
+                "sha": "a" * 40,
+            }
+            live_prs.append(live)
+        closed: list[int] = []
+
+        def close_source(
+            _runner: Any,
+            _mutations: Any,
+            _plan: Any,
+            observed_state: dict[str, Any],
+            source: dict[str, Any],
+            _marker: str,
+            **_kwargs: Any,
+        ) -> None:
+            self.assertEqual(observed_state["status"], "merged")
+            closed.append(source["number"])
+            next(
+                item
+                for item in observed_state["sources"]
+                if item["number"] == source["number"]
+            )["status"] = "closed"
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(
+                executor, "_find_replacements", return_value=[replacement]
+            ),
+            mock.patch.object(executor, "_get_pr", side_effect=live_prs),
+            mock.patch.object(
+                executor,
+                "_live_source_manifests",
+                side_effect=[self.npm_pr["manifests"], self.uv_pr["manifests"]],
+            ),
+            mock.patch.object(executor, "_close_one_source", side_effect=close_source),
+        ):
+            executor._finalize(
+                FakeRunner(executor.CommandResult),
+                executor._Mutations(FakeRunner(executor.CommandResult), False),
+                plan,
+                state,
+                Path(temporary) / "state.json",
+                NOW,
+            )
+
+        self.assertEqual(closed, [20, 21])
+        self.assertEqual(state["status"], "sources-closed")
+        self.assertTrue(all(item["status"] == "closed" for item in state["sources"]))
 
 
 class CanonicalPlanTests(unittest.TestCase):
@@ -770,7 +1793,7 @@ class CanonicalPlanTests(unittest.TestCase):
             lambda: executor.build_plan(fatal_inventory(), candidate, created_at=NOW),
         )
 
-    def test_build_plan__requires_the_inventory_singleton_group(self) -> None:
+    def test_build_plan__requires_a_source_from_the_inventory_group(self) -> None:
         snapshot = inventory(self.patch_pr)
         candidate = update_candidate(
             self.patch_pr,
@@ -1657,10 +2680,11 @@ class HardeningRegressionTests(unittest.TestCase):
                     "dependabot[bot]",
                     state_path,
                     NOW,
+                    pre_merge_check=lambda: events.append("sources"),
                 )
 
         self.assertEqual((merge_sha, queued), (MERGE_SHA, False))
-        self.assertEqual(events, ["capabilities", "base", "merge"])
+        self.assertEqual(events, ["capabilities", "base", "sources", "merge"])
         runner.assert_exhausted()
 
     def test_emitted_contracts__validate_against_all_json_schemas(self) -> None:
@@ -1680,12 +2704,21 @@ class HardeningRegressionTests(unittest.TestCase):
                 impact="patch",
             ),
         )
-        observed_inventory = inventory(pr)
-        candidate = update_candidate(
-            pr,
-            effective_impact="patch",
-            tree_sha=PATCH_TREE_SHA,
+        uv_pr = pull_request(
+            number=59,
+            head_sha="9" * 40,
+            dependency_value=dependency(
+                name="vulture",
+                from_version="2.14",
+                to_version="2.16",
+                impact="minor",
+                ecosystem="uv",
+            ),
+            manifest="backend/pyproject.toml",
+            lockfile="backend/uv.lock",
         )
+        observed_inventory = inventory(pr, uv_pr)
+        candidate = batch_candidate([pr, uv_pr])
         plan = executor.build_plan(observed_inventory, candidate, created_at=NOW)
         state = executor._new_state(plan, NOW)
         schema_dir = Path(__file__).parents[1] / "schemas"
@@ -1706,6 +2739,40 @@ class HardeningRegressionTests(unittest.TestCase):
         }
         for schema_name, value in cases.items():
             with self.subTest(schema=schema_name):
+                errors = list(
+                    Draft202012Validator(
+                        schemas[schema_name], registry=registry
+                    ).iter_errors(value)
+                )
+                self.assertEqual(errors, [])
+
+        invalid_batch = deepcopy(candidate)
+        invalid_batch["stabilityEvidence"][0]["summary"] = (
+            "breaking=applicable; adaptation=not-required"
+        )
+        candidate_validator = Draft202012Validator(
+            schemas["candidate-v1.schema.json"], registry=registry
+        )
+        self.assertTrue(list(candidate_validator.iter_errors(invalid_batch)))
+
+        legacy_candidate = update_candidate(
+            pr,
+            effective_impact="patch",
+            tree_sha=PATCH_TREE_SHA,
+        )
+        legacy_candidate["stabilityEvidence"][0]["summary"] = (
+            "Legacy v1 stable release summary."
+        )
+        legacy_candidate["stabilityEvidence"][0]["subject"] = "react"
+        legacy_plan = executor.build_plan(
+            inventory(pr), legacy_candidate, created_at=NOW
+        )
+        legacy_cases = {
+            "candidate-v1.schema.json": legacy_candidate,
+            "plan-v1.schema.json": legacy_plan,
+        }
+        for schema_name, value in legacy_cases.items():
+            with self.subTest(schema=schema_name, compatibility="singleton-v1"):
                 errors = list(
                     Draft202012Validator(
                         schemas[schema_name], registry=registry

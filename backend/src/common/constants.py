@@ -20,3 +20,6 @@ PHONE_NUMBER_PREFIXES_MAP: dict[CountryIsoCode, int] = {
     CountryIsoCode.MEXICO: DEFAULT_MEXICO_PREFIX,
     CountryIsoCode.BRAZIL: 9,
 }
+
+API_KEY_SECRET_PREFIX: str = "admin_"
+API_KEY_VISIBLE_PREFIX_CHARS: int = 8

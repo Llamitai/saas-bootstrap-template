@@ -91,3 +91,22 @@ def test_session_token_ttls_match_cookie_policy() -> None:
 
     assert local_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES == 15
     assert local_settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES == 60 * 24 * 7
+
+
+def test_aegora_credentials_are_isolated_from_storage_credentials() -> None:
+    values: dict[str, Any] = {
+        "_env_file": None,
+        "ENVIRONMENT": Environment.testing,
+        "AWS_ACCESS_KEY_ID": "storage-key",
+        "AWS_SECRET_ACCESS_KEY": "storage-secret",
+        "AEGORA_AWS_ACCESS_KEY_ID": "aegora-key",
+        "AEGORA_AWS_SECRET_ACCESS_KEY": "aegora-secret",
+        "AEGORA_AWS_REGION": "us-east-1",
+    }
+    local_settings = Settings(**values)
+
+    assert local_settings.AWS_ACCESS_KEY_ID == "storage-key"
+    assert local_settings.AWS_SECRET_ACCESS_KEY == "storage-secret"
+    assert local_settings.AEGORA_AWS_ACCESS_KEY_ID == "aegora-key"
+    assert local_settings.AEGORA_AWS_SECRET_ACCESS_KEY == "aegora-secret"
+    assert local_settings.AEGORA_AWS_REGION == "us-east-1"

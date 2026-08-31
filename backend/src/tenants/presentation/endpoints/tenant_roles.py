@@ -29,9 +29,9 @@ async def get_tenant_roles(
         role_repository=domain_context.tenant_role_repository,
     ).execute()
 
-    current_page.apply_presenter(TenantRolePresenter)
+    presented_page = current_page.apply_presenter(TenantRolePresenter)
     return ApiJSONResponse(
-        content=current_page,
+        content=presented_page,
         status_code=status.HTTP_200_OK,
     )
 

@@ -8,7 +8,8 @@
     },
     "shadcn": {
       "type": "local",
-      "command": ["npx", "-y", "shadcn@latest", "mcp"],
+      "command": ["./node_modules/.bin/shadcn", "mcp"],
+      "cwd": "frontend",
       "enabled": true
     },
     "chrome-devtools": {
@@ -18,21 +19,25 @@
     },
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp"],
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
       "enabled": true
     },
     "context7": {
-      "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
       "enabled": true,
-      "environment": {
+      "headers": {
         "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
       }
     },
     "tailwindcss-server": {
       "type": "local",
-      "command": ["npx", "-y", "tailwindcss-mcp"],
-      "enabled": true
+      "command": ["./node_modules/.bin/tailwindcss-mcp"],
+      "cwd": "frontend",
+      "enabled": true,
+      "environment": {
+        "TAILWIND_VERSION": "4"
+      }
     }
   },
   "skills": {

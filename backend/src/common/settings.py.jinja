@@ -96,6 +96,15 @@ class Settings(BaseSettings):
     AWS_STORAGE_BUCKET_NAME: str | None = None
     AWS_CLOUDFRONT_DOMAIN: str | None = None
 
+    # -> AEGORA AWS BATCH CONFIGURATION
+    # Dedicated credentials avoid coupling Aegora permissions to asset storage.
+    AEGORA_AWS_ACCESS_KEY_ID: str | None = None
+    AEGORA_AWS_SECRET_ACCESS_KEY: str | None = None
+    AEGORA_AWS_REGION: str = "us-east-1"
+    AEGORA_BATCH_JOB_QUEUE: str | None = None
+    AEGORA_BATCH_JOB_DEFINITION: str | None = None
+    AEGORA_BATCH_EVENT_QUEUE_URL: str | None = None
+
     # -> ADMIN CONFIGURATION
     ADMIN_LOGO_URL: str = "https://preview.tabler.io/static/logo-white.svg"
     ADMIN_LOGIN_LOGO_URL: str = "https://preview.tabler.io/static/logo.svg"

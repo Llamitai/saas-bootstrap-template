@@ -1,6 +1,7 @@
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.admin.infrastructure.repositories.sql_api_key import SQLApiKeyRepository
 from src.assets.infrastructure.services.s3_storage import S3StorageService
 from src.common.domain.contexts.domain import DomainContext
 from src.common.infrastructure.services.jwt_token_builder import JwtTokenBuilder
@@ -21,6 +22,8 @@ from src.users.infrastructure.repositories.sql_user import SQLUserRepository
 def build_async_domain(session: AsyncSession) -> DomainContext:
     tenant_user_repository = SQLTenantUserRepository(session=session)
     return DomainContext(
+        # -> ADMIN
+        api_key_repository=SQLApiKeyRepository(session=session),
         # -> USERS
         user_repository=SQLUserRepository(
             session=session,

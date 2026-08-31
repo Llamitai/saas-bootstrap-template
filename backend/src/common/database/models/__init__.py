@@ -1,3 +1,4 @@
+from src.common.database.models.admin.api_key import ApiKeyORM
 from src.common.database.models.email_address import EmailAddressORM
 from src.common.database.models.phone_number import PhoneNumberORM
 from src.common.database.models.tenants.tenant import TenantORM
@@ -9,6 +10,7 @@ from src.common.database.models.tenants.tenant_user_invitation import (
 from src.common.database.models.user import UserORM
 
 __all__ = [
+    "ApiKeyORM",
     "EmailAddressORM",
     "PhoneNumberORM",
     "TenantORM",

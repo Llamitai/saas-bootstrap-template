@@ -1,0 +1,531 @@
+name: Node LTS Migration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+
+concurrency:
+  group: node-lts-migration-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare migration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      migration_needed: ${{ steps.latest.outputs.migration_needed }}
+      target_major: ${{ steps.latest.outputs.major }}
+      lts_date: ${{ steps.latest.outputs.lts_date }}
+      base_sha: ${{ steps.artifact.outputs.base_sha }}
+      patch_sha: ${{ steps.artifact.outputs.patch_sha }}
+      artifact_name: ${{ steps.artifact.outputs.artifact_name }}
+    steps:
+      - name: Checkout default branch without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve latest official LTS
+        id: latest
+        run: >-
+          python3 scripts/node_lts_policy.py latest
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Update managed pins
+        if: steps.latest.outputs.migration_needed == 'true'
+        env:
+          TARGET_MAJOR: ${{ steps.latest.outputs.major }}
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/node_lts_policy.py update "$TARGET_MAJOR"
+
+      - name: Set up pnpm
+        if: steps.latest.outputs.migration_needed == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+
+      - name: Set up target Node.js
+        if: steps.latest.outputs.migration_needed == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            docs/pnpm-lock.yaml
+
+      - name: Regenerate lockfiles without lifecycle scripts
+        if: steps.latest.outputs.migration_needed == 'true'
+        run: |
+          set -Eeuo pipefail
+          pnpm -C frontend install --lockfile-only --ignore-scripts
+          pnpm -C docs install --lockfile-only --ignore-scripts
+
+      - name: Validate policy and tests
+        if: steps.latest.outputs.migration_needed == 'true'
+        run: |
+          set -Eeuo pipefail
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+          python3 scripts/node_lts_policy.py check
+
+      - name: Build validated migration artifact
+        if: steps.latest.outputs.migration_needed == 'true'
+        id: artifact
+        env:
+          TARGET_MAJOR: ${{ steps.latest.outputs.major }}
+          LTS_DATE: ${{ steps.latest.outputs.lts_date }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+          if [[ ! "$TARGET_MAJOR" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'Invalid target major: %s\n' "$TARGET_MAJOR" >&2
+            exit 1
+          fi
+          if [[ ! "$LTS_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            printf 'Invalid LTS date: %s\n' "$LTS_DATE" >&2
+            exit 1
+          fi
+
+          artifact_dir="$(mktemp -d "${RUNNER_TEMP}/node-lts-artifact.XXXXXX")"
+          readonly artifact_dir
+          expected_paths="${RUNNER_TEMP}/node-lts-expected-paths.txt"
+          actual_paths="${RUNNER_TEMP}/node-lts-actual-paths.txt"
+          patch_path="$artifact_dir/migration.patch"
+          metadata_path="$artifact_dir/metadata.json"
+
+          allowed_paths=(
+            ".nvmrc"
+            "README.md"
+            "package.json"
+            "frontend/package.json"
+            "frontend/pnpm-lock.yaml"
+            "docs/package.json"
+            "docs/pnpm-lock.yaml"
+            "frontend/Dockerfile"
+            ".github/workflows/code_quality.yml"
+            ".gitlab/ci/quality.gitlab-ci.yml"
+          )
+          profile="generated"
+          if [[ -f "scripts/build_template.py" ]]; then
+            profile="canonical"
+            allowed_paths+=(".github/workflows/publish-template.yml")
+          fi
+
+          printf '%s\n' "${allowed_paths[@]}" | LC_ALL=C sort > "$expected_paths"
+          git diff --name-only --diff-filter=ACMRTUXB |
+            LC_ALL=C sort > "$actual_paths"
+          if ! cmp -s "$expected_paths" "$actual_paths"; then
+            printf 'Unexpected migration diff.\nExpected:\n' >&2
+            sed 's/^/  /' "$expected_paths" >&2
+            printf 'Actual:\n' >&2
+            sed 's/^/  /' "$actual_paths" >&2
+            exit 1
+          fi
+          if [[ -n "$(git diff --name-only --diff-filter=D)" ]]; then
+            printf 'Node LTS migration may not delete files\n' >&2
+            exit 1
+          fi
+          if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+            printf 'Node LTS migration produced unexpected untracked files\n' >&2
+            git ls-files --others --exclude-standard >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet; then
+            printf 'Node LTS migration may not contain pre-staged changes\n' >&2
+            exit 1
+          fi
+
+          git diff --binary --full-index --no-ext-diff -- \
+            "${allowed_paths[@]}" > "$patch_path"
+          if [[ ! -s "$patch_path" ]]; then
+            printf 'Node LTS migration patch is empty\n' >&2
+            exit 1
+          fi
+
+          base_sha="$(git rev-parse HEAD)"
+          patch_sha="$(sha256sum "$patch_path" | awk '{print $1}')"
+          if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid base SHA: %s\n' "$base_sha" >&2
+            exit 1
+          fi
+          if [[ ! "$patch_sha" =~ ^[0-9a-f]{64}$ ]]; then
+            printf 'Invalid patch SHA: %s\n' "$patch_sha" >&2
+            exit 1
+          fi
+
+          export BASE_SHA="$base_sha"
+          export PATCH_SHA="$patch_sha"
+          export PROFILE="$profile"
+          export EXPECTED_PATHS="$expected_paths"
+          export METADATA_PATH="$metadata_path"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          expected_paths = Path(os.environ["EXPECTED_PATHS"]).read_text(
+              encoding="utf-8"
+          ).splitlines()
+          metadata = {
+              "allowed_paths": expected_paths,
+              "base_sha": os.environ["BASE_SHA"],
+              "lts_date": os.environ["LTS_DATE"],
+              "patch_sha": os.environ["PATCH_SHA"],
+              "profile": os.environ["PROFILE"],
+              "target_major": int(os.environ["TARGET_MAJOR"]),
+          }
+          Path(os.environ["METADATA_PATH"]).write_text(
+              json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          artifact_name="node-lts-${TARGET_MAJOR}-${GITHUB_RUN_ID}"
+          {
+            printf 'base_sha=%s\n' "$base_sha"
+            printf 'patch_sha=%s\n' "$patch_sha"
+            printf 'artifact_name=%s\n' "$artifact_name"
+            printf 'path=%s\n' "$artifact_dir"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload migration artifact
+        if: steps.latest.outputs.migration_needed == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact.outputs.artifact_name }}
+          path: ${{ steps.artifact.outputs.path }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish migration PR
+    needs: prepare
+    if: needs.prepare.outputs.migration_needed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout exact base without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download migration artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare.outputs.artifact_name }}
+          path: ${{ runner.temp }}/node-lts-artifact
+
+      - name: Validate and apply migration artifact
+        id: candidate
+        env:
+          EXPECTED_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          EXPECTED_PATCH_SHA: ${{ needs.prepare.outputs.patch_sha }}
+          TARGET_MAJOR: ${{ needs.prepare.outputs.target_major }}
+          LTS_DATE: ${{ needs.prepare.outputs.lts_date }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          artifact_dir="${RUNNER_TEMP}/node-lts-artifact"
+          patch_path="$artifact_dir/migration.patch"
+          metadata_path="$artifact_dir/metadata.json"
+          actual_artifact_files="${RUNNER_TEMP}/node-lts-artifact-files.txt"
+          actual_patch_paths="${RUNNER_TEMP}/node-lts-patch-paths.txt"
+          expected_paths="${RUNNER_TEMP}/node-lts-publish-expected-paths.txt"
+
+          if [[ ! "$EXPECTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid expected base SHA\n' >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PATCH_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+            printf 'Invalid expected patch SHA\n' >&2
+            exit 1
+          fi
+          if [[ ! "$TARGET_MAJOR" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'Invalid target major\n' >&2
+            exit 1
+          fi
+          if [[ ! "$LTS_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            printf 'Invalid LTS date\n' >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$EXPECTED_BASE_SHA" ]]; then
+            printf 'Checkout SHA does not match the prepared base\n' >&2
+            exit 1
+          fi
+
+          find "$artifact_dir" -maxdepth 1 -type f -printf '%f\n' |
+            LC_ALL=C sort > "$actual_artifact_files"
+          if ! diff -u <(printf '%s\n' "metadata.json" "migration.patch" |
+              LC_ALL=C sort) "$actual_artifact_files"; then
+            printf 'Migration artifact contains unexpected files\n' >&2
+            exit 1
+          fi
+
+          allowed_paths=(
+            ".nvmrc"
+            "README.md"
+            "package.json"
+            "frontend/package.json"
+            "frontend/pnpm-lock.yaml"
+            "docs/package.json"
+            "docs/pnpm-lock.yaml"
+            "frontend/Dockerfile"
+            ".github/workflows/code_quality.yml"
+            ".gitlab/ci/quality.gitlab-ci.yml"
+          )
+          profile="generated"
+          if [[ -f "scripts/build_template.py" ]]; then
+            profile="canonical"
+            allowed_paths+=(".github/workflows/publish-template.yml")
+          fi
+          printf '%s\n' "${allowed_paths[@]}" | LC_ALL=C sort > "$expected_paths"
+
+          export EXPECTED_PATHS="$expected_paths"
+          export METADATA_PATH="$metadata_path"
+          export PATCH_PATH="$patch_path"
+          export PROFILE="$profile"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from datetime import date
+          from pathlib import Path
+
+          metadata = json.loads(
+              Path(os.environ["METADATA_PATH"]).read_text(encoding="utf-8")
+          )
+          expected_keys = {
+              "allowed_paths",
+              "base_sha",
+              "lts_date",
+              "patch_sha",
+              "profile",
+              "target_major",
+          }
+          if set(metadata) != expected_keys:
+              raise SystemExit("metadata has an unexpected schema")
+          if metadata["base_sha"] != os.environ["EXPECTED_BASE_SHA"]:
+              raise SystemExit("metadata base SHA mismatch")
+          if metadata["patch_sha"] != os.environ["EXPECTED_PATCH_SHA"]:
+              raise SystemExit("metadata patch SHA mismatch")
+          if metadata["target_major"] != int(os.environ["TARGET_MAJOR"]):
+              raise SystemExit("metadata target major mismatch")
+          if metadata["lts_date"] != os.environ["LTS_DATE"]:
+              raise SystemExit("metadata LTS date mismatch")
+          if metadata["profile"] != os.environ["PROFILE"]:
+              raise SystemExit("metadata profile mismatch")
+          if not re.fullmatch(r"[0-9a-f]{40}", metadata["base_sha"]):
+              raise SystemExit("metadata base SHA is invalid")
+          if not re.fullmatch(r"[0-9a-f]{64}", metadata["patch_sha"]):
+              raise SystemExit("metadata patch SHA is invalid")
+          date.fromisoformat(metadata["lts_date"])
+          expected_paths = Path(os.environ["EXPECTED_PATHS"]).read_text(
+              encoding="utf-8"
+          ).splitlines()
+          if metadata["allowed_paths"] != expected_paths:
+              raise SystemExit("metadata allowlist mismatch")
+          patch_sha = hashlib.sha256(
+              Path(os.environ["PATCH_PATH"]).read_bytes()
+          ).hexdigest()
+          if patch_sha != metadata["patch_sha"]:
+              raise SystemExit("downloaded patch hash mismatch")
+          PY
+
+          git apply --check "$patch_path"
+          git apply --numstat "$patch_path" | cut -f3- |
+            LC_ALL=C sort > "$actual_patch_paths"
+          if ! cmp -s "$expected_paths" "$actual_patch_paths"; then
+            printf 'Patch paths do not match the publish allowlist\n' >&2
+            exit 1
+          fi
+          git apply --index "$patch_path"
+          git diff --cached --name-only | LC_ALL=C sort > "$actual_patch_paths"
+          if ! cmp -s "$expected_paths" "$actual_patch_paths"; then
+            printf 'Applied paths do not match the publish allowlist\n' >&2
+            exit 1
+          fi
+          if ! git diff --quiet; then
+            printf 'Patch produced unstaged changes\n' >&2
+            exit 1
+          fi
+          if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+            printf 'Patch produced untracked files\n' >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_AUTHOR_DATE="${LTS_DATE}T00:00:00Z"
+          export GIT_COMMITTER_DATE="${LTS_DATE}T00:00:00Z"
+          git commit -m "chore(node): migrate to Node ${TARGET_MAJOR} LTS"
+
+          candidate_sha="$(git rev-parse HEAD)"
+          if [[ ! "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid candidate SHA\n' >&2
+            exit 1
+          fi
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Safely publish branch and open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_MAJOR: ${{ needs.prepare.outputs.target_major }}
+          LTS_DATE: ${{ needs.prepare.outputs.lts_date }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${GH_TOKEN:?GH_TOKEN is required}"
+          : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          : "${DEFAULT_BRANCH:?DEFAULT_BRANCH is required}"
+          if [[ ! "$GITHUB_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            printf 'Invalid repository name: %s\n' "$GITHUB_REPOSITORY" >&2
+            exit 1
+          fi
+          if [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            printf 'Invalid default branch: %s\n' "$DEFAULT_BRANCH" >&2
+            exit 1
+          fi
+          if [[ ! "$TARGET_MAJOR" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'Invalid target major\n' >&2
+            exit 1
+          fi
+          if [[ ! "$LTS_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            printf 'Invalid LTS date\n' >&2
+            exit 1
+          fi
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid candidate SHA\n' >&2
+            exit 1
+          fi
+
+          owner="${GITHUB_REPOSITORY%%/*}"
+          branch="automation/node-${TARGET_MAJOR}-lts"
+          expected_title="chore(node): migrate to Node ${TARGET_MAJOR} LTS"
+          pr_json="${RUNNER_TEMP}/node-lts-open-prs.json"
+          validation_json="${RUNNER_TEMP}/node-lts-branch-validation.json"
+
+          # GraphQL variable names must remain literal for gh to bind via -F.
+          # shellcheck disable=SC2016
+          branch_query='query($owner:String!, $name:String!, $qualifiedName:String!) {
+            repository(owner:$owner, name:$name) {
+              ref(qualifiedName:$qualifiedName) {
+                target { ... on Commit { oid } }
+              }
+            }
+          }'
+          remote_sha="$(gh api graphql \
+            -f query="$branch_query" \
+            -F owner="$owner" \
+            -F name="${GITHUB_REPOSITORY#*/}" \
+            -F qualifiedName="refs/heads/$branch" \
+            --jq '.data.repository.ref.target.oid // ""')"
+          if [[ -n "$remote_sha" && ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid remote branch SHA\n' >&2
+            exit 1
+          fi
+
+          gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+            -f state=open \
+            -f "head=${owner}:${branch}" \
+            -f per_page=2 > "$pr_json"
+
+          export BRANCH="$branch"
+          export CANDIDATE_SHA
+          export EXPECTED_TITLE="$expected_title"
+          export PR_JSON="$pr_json"
+          export REMOTE_SHA="$remote_sha"
+          export VALIDATION_JSON="$validation_json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pulls = json.loads(Path(os.environ["PR_JSON"]).read_text(encoding="utf-8"))
+          if not isinstance(pulls, list) or len(pulls) > 1:
+              raise SystemExit("expected at most one open automation PR")
+          remote_sha = os.environ["REMOTE_SHA"]
+          candidate_sha = os.environ["CANDIDATE_SHA"]
+          result = {"create_pr": not pulls, "pr_number": None}
+          if pulls:
+              pull = pulls[0]
+              if not remote_sha:
+                  raise SystemExit("automation PR exists but its branch is missing")
+              if pull.get("title") != os.environ["EXPECTED_TITLE"]:
+                  raise SystemExit("existing automation PR title does not match")
+              if pull.get("user", {}).get("login") != "github-actions[bot]":
+                  raise SystemExit("existing automation PR is not owned by GitHub Actions")
+              if pull.get("head", {}).get("ref") != os.environ["BRANCH"]:
+                  raise SystemExit("existing automation PR head branch does not match")
+              if pull.get("head", {}).get("sha") != remote_sha:
+                  raise SystemExit("existing automation PR head SHA does not match its branch")
+              if "<!-- node-lts-automation -->" not in (pull.get("body") or ""):
+                  raise SystemExit("existing automation PR lacks the ownership marker")
+              result = {"create_pr": False, "pr_number": pull.get("number")}
+          elif remote_sha and remote_sha != candidate_sha:
+              raise SystemExit(
+                  "automation branch exists without its expected PR; manual inspection required"
+              )
+          if result["pr_number"] is not None and not isinstance(
+              result["pr_number"], int
+          ):
+              raise SystemExit("existing PR number is invalid")
+          Path(os.environ["VALIDATION_JSON"]).write_text(
+              json.dumps(result), encoding="utf-8"
+          )
+          PY
+
+          publish_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if [[ -n "$remote_sha" ]]; then
+            git push \
+              --force-with-lease="refs/heads/${branch}:${remote_sha}" \
+              "$publish_url" "HEAD:refs/heads/$branch"
+          else
+            git push "$publish_url" "HEAD:refs/heads/$branch"
+          fi
+
+          create_pr="$(python3 -c \
+            'import json,sys; print(str(json.load(open(sys.argv[1]))["create_pr"]).lower())' \
+            "$validation_json")"
+          if [[ "$create_pr" == "true" ]]; then
+            pr_body="${RUNNER_TEMP}/node-lts-pr-body.md"
+            {
+              printf '%s\n\n' '<!-- node-lts-automation -->'
+              printf 'Node %s entered official LTS on %s.\n\n' \
+                "$TARGET_MAJOR" "$LTS_DATE"
+              printf '%s\n' \
+                'This PR updates the runtime, containers, CI, engines, types, and lockfiles as one reviewed migration.' \
+                '' \
+                'It was generated by the repository Node LTS policy workflow. Auto-merge is intentionally disabled.'
+            } > "$pr_body"
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base "$DEFAULT_BRANCH" \
+              --head "$branch" \
+              --title "$expected_title" \
+              --body-file "$pr_body"
+          fi
+
+          gh workflow run code_quality.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$branch"

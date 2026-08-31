@@ -65,11 +65,21 @@ Codex, Claude Code, and OpenCode.
 
 - **Docker** with the Compose plugin (the whole backend runs in containers).
 - **[just](https://github.com/casey/just)** — command runner for every dev task.
-- **Node.js 22** (version pinned in `.nvmrc`).
+- **Node.js 24** LTS (major pinned in `.nvmrc`).
 - **pnpm 11** — `corepack enable` activates the version pinned in
   `frontend/package.json`.
 - Optional: **uv** and **lefthook** for the backend pre-commit hooks
   (`lefthook install`).
+
+The repository keeps every runtime, container, CI, engine, and `@types/node`
+pin on the latest Node.js major that has officially entered LTS. A scheduled
+workflow proposes future LTS migrations as reviewable pull requests; it never
+merges them automatically and never selects a Current release.
+
+Repositories created from the Copier template must enable **Allow GitHub
+Actions to create and approve pull requests** under **Settings → Actions →
+General → Workflow permissions**. The automation only creates the migration
+PR; normal review and branch protection still apply.
 
 ### Steps
 

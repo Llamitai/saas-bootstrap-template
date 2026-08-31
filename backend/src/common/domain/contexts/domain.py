@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from src.admin.domain.repositories.api_key import ApiKeyRepository
 from src.assets.domain.services.storage import StorageService
 from src.common.domain.services.token_service import TokenService
 from src.tenants.domain.repositories.tenant import TenantRepository
@@ -15,6 +16,9 @@ from src.users.domain.repositories.user import UserRepository
 
 @dataclass
 class DomainContext:
+    # -> ADMIN
+    api_key_repository: ApiKeyRepository
+
     # -> USERS
     user_repository: UserRepository
     email_repository: EmailAddressRepository

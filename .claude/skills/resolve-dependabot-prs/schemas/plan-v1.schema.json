@@ -47,7 +47,6 @@
         "$ref": "#/$defs/operation"
       },
       "minItems": 1,
-      "maxItems": 4,
       "uniqueItems": true
     },
     "approval": {
@@ -442,25 +441,19 @@
         },
         {
           "$ref": "#/$defs/replacementMergeOperation"
-        },
-        {
-          "$ref": "#/$defs/closeSourceOperation"
         }
       ],
-      "items": false,
-      "minItems": 4,
-      "maxItems": 4
+      "items": {
+        "$ref": "#/$defs/closeSourceOperation"
+      },
+      "minItems": 4
     },
     "closeOperations": {
       "type": "array",
-      "prefixItems": [
-        {
-          "$ref": "#/$defs/closeSourceOperation"
-        }
-      ],
-      "items": false,
-      "minItems": 1,
-      "maxItems": 1
+      "items": {
+        "$ref": "#/$defs/closeSourceOperation"
+      },
+      "minItems": 1
     },
     "noApproval": {
       "type": "object",

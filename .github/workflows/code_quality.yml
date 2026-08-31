@@ -26,6 +26,19 @@ jobs:
       - name: Verify skill copies are in sync
         run: python3 scripts/sync_skills.py --check
 
+  node-lts-policy:
+    name: Node LTS policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run policy tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
+      - name: Verify Node.js pins
+        run: python3 scripts/node_lts_policy.py check
+
   template:
     name: Template round-trip
     # Canonical repo only: the workflow travels into generated projects, but
@@ -38,7 +51,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.0.1
 
       # Fidelity (round-trip == repo) and anti-drift (no branding leftovers in
       # a non-default render). Cheap; keeps scripts/branding_tokens.json honest
@@ -70,7 +83,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock

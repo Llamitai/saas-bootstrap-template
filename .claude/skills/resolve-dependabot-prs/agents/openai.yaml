@@ -1,7 +1,7 @@
 interface:
   display_name: "Resolve Dependabot PRs"
-  short_description: "Resolve stable Dependabot PRs safely"
-  default_prompt: "Use $resolve-dependabot-prs to inspect and safely resolve every open Dependabot pull request in the current repository."
+  short_description: "Consolidate safe Dependabot updates"
+  default_prompt: "Use $resolve-dependabot-prs to consolidate, verify, merge, and close every safe Dependabot update in the current repository."
 
 policy:
   allow_implicit_invocation: true

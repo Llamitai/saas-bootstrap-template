@@ -57,3 +57,13 @@ class InvalidAdminApiKeyError(DomainError):
             status_code=status.HTTP_401_UNAUTHORIZED,
             context=context,
         )
+
+
+class UnauthorizedIntegrationError(DomainError):
+    def __init__(self, context=None):
+        super().__init__(
+            code="common.UnauthorizedClient",
+            message="Unauthorized",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            context=context,
+        )

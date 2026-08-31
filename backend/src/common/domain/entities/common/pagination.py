@@ -72,5 +72,9 @@ class Page[T](BaseModel):
             limit=page_size,  # Added limit parameter
         )
 
-    def apply_presenter(self, presenter_class: type[Presenter[T]]) -> None:
-        self.items = [presenter_class(item).to_dict for item in (self.items or [])]
+    def apply_presenter(self, presenter_class: type[Presenter[T]]) -> Page[dict[str, Any]]:
+        return Page(
+            next_cursor=self.next_cursor,
+            items=[presenter_class(item).to_dict for item in (self.items or [])],
+            limit=self.limit,
+        )

@@ -68,7 +68,6 @@
         "$ref": "#/$defs/operation"
       },
       "minItems": 1,
-      "maxItems": 4,
       "uniqueItems": true
     },
     "sources": {
@@ -77,7 +76,6 @@
         "$ref": "#/$defs/source"
       },
       "minItems": 1,
-      "maxItems": 1,
       "uniqueItems": true
     },
     "blocked": {
