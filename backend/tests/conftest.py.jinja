@@ -1,3 +1,5 @@
+import os
+import re
 from collections.abc import AsyncGenerator
 from uuid import UUID, uuid4
 
@@ -11,7 +13,9 @@ from src.common.domain.enums.tenants import TenantStatus
 from src.common.domain.models.tenants.tenant import Tenant
 from src.common.settings import settings
 
-TEST_DB_NAME = "[[ python_name ]]_test"
+TEST_DB_NAME = os.environ.get("TEST_DATABASE_NAME", f"[[ python_name ]]_test_{uuid4().hex}")
+if not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", TEST_DB_NAME) or "_test_" not in TEST_DB_NAME:
+    raise ValueError("TEST_DATABASE_NAME must be an exclusive SQL identifier containing _test_")
 
 # Override settings BEFORE any DatabaseConfig is built so no test ever touches
 # the dev database. `get_database_config()` reads `settings.async_database_url`
@@ -39,8 +43,9 @@ async def _ensure_test_database_exists() -> None:
                 text("SELECT 1 FROM pg_database WHERE datname = :name"),
                 {"name": TEST_DB_NAME},
             )
-            if not exists:
-                await conn.execute(text(f'CREATE DATABASE "{TEST_DB_NAME}"'))
+            if exists:
+                raise RuntimeError(f"Refusing to reuse an existing test database: {TEST_DB_NAME}")
+            await conn.execute(text(f'CREATE DATABASE "{TEST_DB_NAME}"'))
     finally:
         await engine.dispose()
 
@@ -69,10 +74,9 @@ async def setup_database() -> AsyncGenerator[None]:
     await _ensure_test_database_exists()
 
     db_config = get_database_config()
-    async with db_config.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     try:
+        async with db_config.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         yield
     finally:
         await db_config.dispose()

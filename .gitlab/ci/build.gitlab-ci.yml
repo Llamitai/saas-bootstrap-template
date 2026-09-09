@@ -1,15 +1,13 @@
 # Mirror of .github/workflows/build_backend.yml + build_frontend.yml
-# On push to main/dev (path-scoped): build the image to the GitLab Container
+# After quality/test on main/dev: build both images to the GitLab Container
 # Registry, then redeploy the Portainer stack. main -> Production, dev -> Development.
 
-# --- Shared rule sets (path-scoped, with per-branch environment) ------------
+# --- Shared rule sets (with per-branch environment) -----------------------
 .rules-backend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      changes: [backend/**/*]
       variables: { DEPLOY_ENV: Production }
     - if: $CI_COMMIT_BRANCH == "dev"
-      changes: [backend/**/*]
       variables: { DEPLOY_ENV: Development }
     - if: $CI_PIPELINE_SOURCE == "web"
       variables: { DEPLOY_ENV: Development }
@@ -17,10 +15,8 @@
 .rules-frontend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      changes: [frontend/**/*]
       variables: { DEPLOY_ENV: Production }
     - if: $CI_COMMIT_BRANCH == "dev"
-      changes: [frontend/**/*]
       variables: { DEPLOY_ENV: Development }
     - if: $CI_PIPELINE_SOURCE == "web"
       variables: { DEPLOY_ENV: Development }
@@ -65,7 +61,10 @@ build:backend:
 deploy:backend:
   extends: .portainer-deploy
   needs: ["build:backend"]
-  rules: !reference [.rules-backend, rules]
+  rules:
+    - if: $CI_PROJECT_PATH == "Llamitai/wise"
+      when: never
+    - !reference [.rules-backend, rules]
   environment:
     name: $DEPLOY_ENV
   script:
@@ -118,7 +117,10 @@ build:frontend:
 deploy:frontend:
   extends: .portainer-deploy
   needs: ["build:frontend"]
-  rules: !reference [.rules-frontend, rules]
+  rules:
+    - if: $CI_PROJECT_PATH == "Llamitai/wise"
+      when: never
+    - !reference [.rules-frontend, rules]
   environment:
     name: $DEPLOY_ENV
   script:

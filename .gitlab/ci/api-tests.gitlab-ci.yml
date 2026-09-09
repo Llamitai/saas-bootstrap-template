@@ -21,10 +21,18 @@ api:tests:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - backend/**/*
+        - frontend/src/shared/http/**/*
+        - frontend/src/features/auth/**/*
+        - frontend/src/app/api/**/*
+        - frontend/src/proxy.ts
+        - frontend/tests/**/*
+        - just/**/*
+        - scripts/test_stack.py
+        - .gitlab/ci/**/*
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
   before_script:
-    - apk add --no-cache just docker-cli-compose
+    - apk add --no-cache just docker-cli-compose python3
     - cp backend/.env.example backend/.env
   script:
     - just backend test api

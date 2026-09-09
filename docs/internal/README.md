@@ -9,6 +9,10 @@ como histórico dentro del repositorio.
 
 ## Mapa
 
+- [Perfil del proyecto](project-profile.md): capacidades, contratos y fuentes.
+- [Verificación](verification.md): recetas, aislamiento, evidencia y aceptación.
+- [Auditoría de skills propios](adr/0003-auditoria-y-depuracion-de-skills.md): responsabilidades, eliminaciones y procedencia.
+
 - `architecture/frontend-architecture.md`: fuente de verdad para estructura e
   imports del frontend.
 - `architecture/erd-diagram.md`: ERD reducido de la base core.

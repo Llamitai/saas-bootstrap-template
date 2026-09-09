@@ -7,13 +7,11 @@ are relative to the repo root.
 
 ## Language
 
-Decide this **before writing** (it's step 1 of the process).
+Apply these conventions before writing.
 
 - **Default: Spanish** — the existing content under `docs/content/docs/**` is Spanish.
-  If the request doesn't make the language explicit, **ask** with `AskUserQuestion` —
-  options *Español* (recommended, first) and *English* — and wait for the answer. If the
-  request names a language ("documenta … en inglés", "in English"), honor it without asking.
-  When you also need the placement question, ask both in one `AskUserQuestion` call.
+  Use that default without asking. If the request names a language ("documenta …
+  en inglés", "in English"), honor it without asking again.
 - **Translate (everything a reader sees):** frontmatter `title` and `description`; all headings;
   prose; table headers and cell text; callouts; "where to go next" link labels; and **diagram
   labels** — Mermaid node/edge text *and* the `<text>` in any SVG you author.
@@ -269,4 +267,5 @@ node <this-skill-dir>/tools/preview-diagram.mjs docs/content/docs/<subfolder>/<s
   (or ask which to do first).
 - **Language is a content decision, not a code one.** Translate diagram labels too — but never
   translate Mermaid keywords, enum values, identifiers or paths, and keep slugs/filenames ASCII
-  (no accents). Default Spanish; ask when unspecified.
+  (no accents). Use the Spanish default without asking; honor an explicit user
+  language choice.

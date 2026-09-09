@@ -4,7 +4,7 @@ context: |
   [[ project_name ]] is a multi-tenant starter for authenticated B2B products:
   a FastAPI backend (Clean Architecture + DDD, async SQLAlchemy, modules
   under backend/src), a Next.js frontend (feature-first, app -> features ->
-  entities -> shared, BFF routes under /api), and a React Router 7 +
+  entities -> shared, BFF routes under /api), and a React Router +
   Fumadocs docs site in docs/. See AGENTS.md for detailed conventions and
   working rules.
 
@@ -17,3 +17,10 @@ context: |
 #       - Always include a "Non-goals" section
 #     tasks:
 #       - Break tasks into chunks of max 2 hours
+
+rules:
+  proposal:
+    - Reuse the approved request; identify consumer, scope and observable acceptance.
+  tasks:
+    - Link vertical tasks to normative criteria and keep Evidence and acceptance here.
+    - Record tested revision, commands, observations and pending criteria; all_done is not acceptance.

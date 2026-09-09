@@ -20,8 +20,9 @@ install:
     pnpm install
 
 # Run unit tests
-test:
-    pnpm test
+[positional-arguments]
+test *args:
+    pnpm test "$@"
 
 # ─── CODE QUALITY ───────────────────────────────────────────────
 
@@ -65,3 +66,11 @@ e2e-headed:
 # Run a single e2e spec: just frontend e2e-spec tests/end-to-end/example.spec.ts
 e2e-spec spec:
     pnpm exec playwright test "{{spec}}"
+
+# Static checks without tests, build or autofix
+check:
+    pnpm check:static
+
+# Create a new feature; refuses to overwrite an existing feature
+new-feature name:
+    pnpm gen:feature {{quote(name)}}

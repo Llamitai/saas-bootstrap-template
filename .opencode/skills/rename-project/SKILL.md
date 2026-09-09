@@ -17,14 +17,12 @@ Use this skill to turn the neutral boilerplate branding into a concrete product 
 3. Run the bundled script in dry-run mode from the repo root:
 
 ```bash
-python3 .codex/skills/rename-project/scripts/rename_project.py "New Name" --root . --dry-run
+python3 <skill-dir>/scripts/rename_project.py "New Name" --root . --dry-run
 ```
 
-Use the local path that exists in the current environment:
-
-- Codex: `.codex/skills/rename-project/scripts/rename_project.py`
-- Claude Code: `.claude/skills/rename-project/scripts/rename_project.py`
-- OpenCode: `.opencode/skills/rename-project/scripts/rename_project.py`
+Resolve `<skill-dir>` from this loaded `SKILL.md`. The canonical source is
+`.claude/skills/rename-project`; Codex uses `.agents/skills/rename-project` and
+OpenCode has a synchronized copy. Do not assume a `.codex/skills` copy exists.
 
 4. Review the dry-run file list. If it includes generated output or vendor files, stop and narrow the command with `--exclude`.
 5. Run the script without `--dry-run`.

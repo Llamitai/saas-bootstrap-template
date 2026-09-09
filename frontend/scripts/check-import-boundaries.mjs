@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import ts from "typescript";
 
 const root = process.cwd();
 const extensions = new Set([".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]);
@@ -16,8 +17,38 @@ const ignoredDirs = new Set([
 ]);
 const ignoredFiles = new Set(["next-env.d.ts"]);
 
-const importPattern =
-  /(?:import|export)\s+(?:type\s+)?(?:[^'"()]*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s*\(\s*`([^`]+)`\s*\)/g;
+function imports(source, file) {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const found = [];
+  function visit(node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      found.push(node.moduleSpecifier.text);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) &&
+          node.expression.text === "require"))
+    ) {
+      const first = node.arguments[0];
+      if (first && ts.isStringLiteralLike(first)) found.push(first.text);
+    }
+    if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      found.push(node.argument.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  return found;
+}
 
 function toPosix(value) {
   return value.split(path.sep).join("/");
@@ -79,9 +110,26 @@ function entityName(relativePath) {
   return match?.[1] ?? null;
 }
 
+const clientModuleCache = new Map();
 function isClientModule(source) {
-  const prelude = source.slice(0, 512);
-  return /^(?:\s|;|\/\/.*|\/\*[\s\S]*?\*\/)*["']use client["']/.test(prelude);
+  if (clientModuleCache.has(source)) return clientModuleCache.get(source);
+  const ast = ts.createSourceFile(
+    "module.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    true
+  );
+  let client = false;
+  for (const statement of ast.statements) {
+    if (
+      !ts.isExpressionStatement(statement) ||
+      !ts.isStringLiteral(statement.expression)
+    )
+      break;
+    if (statement.expression.text === "use client") client = true;
+  }
+  clientModuleCache.set(source, client);
+  return client;
 }
 
 function isFeatureUi(relativePath) {
@@ -118,7 +166,20 @@ function isBrowserFacing(relativePath, source) {
 }
 
 function checkImport({ file, relativePath, source, specifier, resolved }) {
+  if (
+    isBrowserFacing(relativePath, source) &&
+    (["next/headers", "server-only"].includes(specifier) ||
+      /^src\/shared\/(config\/server|http\/(server|bff|session-cookies))(?:\.[cm]?[jt]sx?)?$/.test(
+        resolved ?? ""
+      ))
+  ) {
+    addViolation(
+      file,
+      `browser-facing code must not import server-only module ${specifier}`
+    );
+  }
   if (!resolved) return;
+  resolved = resolved.replace(/\.[cm]?[jt]sx?$/, "");
 
   if (isRetiredTopLevelPath(resolved)) {
     addViolation(
@@ -156,6 +217,17 @@ function checkImport({ file, relativePath, source, specifier, resolved }) {
         );
       }
     }
+  }
+
+  if (
+    featureName(relativePath) &&
+    importedEntity &&
+    !new RegExp(`^src/entities/${importedEntity}(?:/index)?/?$`).test(resolved)
+  ) {
+    addViolation(
+      file,
+      `feature imports must use the entity public API, not ${specifier}`
+    );
   }
 
   const importerFeature = featureName(relativePath);
@@ -236,8 +308,7 @@ for await (const file of walk(root)) {
     );
   }
 
-  for (const match of source.matchAll(importPattern)) {
-    const specifier = match[1] ?? match[2] ?? match[3];
+  for (const specifier of imports(source, file)) {
     if (specifier.startsWith(".")) {
       addViolation(
         file,

@@ -69,6 +69,7 @@ test_mode = "asyncio"
 
 [tool.importlinter]
 root_package = "src"
+include_external_packages = true
 
 # Clean Architecture direction inside every module: presentation may import
 # infrastructure/application/domain, but never the other way around. Layers in
@@ -92,6 +93,26 @@ layers = [
     "(application)",
     "(domain)",
 ]
+
+[% raw %][[[% endraw %]tool.importlinter.contracts[% raw %]]][% endraw %]
+name = "Inner layers cannot bypass boundaries through another module or framework"
+type = "forbidden"
+source_modules = ["src.*.domain", "src.*.application"]
+forbidden_modules = ["src.*.infrastructure", "src.*.presentation", "src.common.database", "sqlalchemy", "fastapi", "starlette"]
+# Existing response serialization adapter; keep this exception narrow and auditable.
+ignore_imports = ["src.common.application.helpers.json_encoder -> fastapi"]
+
+[% raw %][[[% endraw %]tool.importlinter.contracts[% raw %]]][% endraw %]
+name = "Domain cannot depend on application across modules"
+type = "forbidden"
+source_modules = ["src.*.domain"]
+forbidden_modules = ["src.*.application"]
+
+[% raw %][[[% endraw %]tool.importlinter.contracts[% raw %]]][% endraw %]
+name = "Shared domain does not depend on features"
+type = "forbidden"
+source_modules = ["src.common.domain.models"]
+forbidden_modules = ["src.auth", "src.users", "src.tenants", "src.assets", "src.admin", "src.profile", "src.messaging"]
 
 
 [tool.uv]

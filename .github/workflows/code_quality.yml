@@ -23,8 +23,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Verify skill copies are in sync
-        run: python3 scripts/sync_skills.py --check
+      - name: Check agent configuration before any repair
+        run: |
+          python3 scripts/check_agent_config.py
+          python3 scripts/sync_skills.py --check
+          python3 -m unittest discover -s scripts/tests -p 'test_sync_skills.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_agent_config.py'
 
   node-lts-policy:
     name: Node LTS policy
@@ -34,7 +38,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Run policy tests
-        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+        run: python3 -m unittest discover -s scripts/tests -p 'test_node_lts_policy.py'
 
       - name: Verify Node.js pins
         run: python3 scripts/node_lts_policy.py check
@@ -91,23 +95,22 @@ jobs:
           prune-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
-      - name: Lint (ruff)
-        run: uv run ruff check .
+      - name: Backend static gate (same entrypoint as just)
+        run: uv run --locked python scripts/check.py
 
-      - name: Type-check (ty)
-        run: uv run ty check
-
-      - name: Architecture boundaries (import-linter)
-        run: uv run lint-imports
+      - name: Check migrations with exclusive databases
         env:
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_DB: postgres
           PYTHONPATH: .
+        run: uv run --locked python scripts/check_migrations.py
 
       - name: Unit tests (pytest)
         env:
           POSTGRES_HOST: 127.0.0.1
-        run: uv run pytest -m "not api"
+        run: uv run --locked pytest -m "not api"
 
   frontend:
     name: Frontend
@@ -134,17 +137,93 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type-check (tsc)
-        run: pnpm type-check
+      - name: Frontend verification (same entrypoint as just)
+        run: pnpm verify
 
-      - name: Lint & format (biome)
-        run: pnpm check
+      - name: Tooling regression tests
+        run: python3 -m unittest discover -s ../scripts/tests -p 'test_frontend_tooling.py'
 
-      - name: Unit tests (vitest)
-        run: pnpm test
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: Architecture boundaries
-        run: pnpm lint:boundaries
+      - name: Frontend browser smoke
+        run: pnpm test:e2e
 
-      - name: Build (next)
-        run: pnpm build
+  specs:
+    name: OpenSpec structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: python3 scripts/check_specs.py
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_openspec.py'
+
+  integration:
+    name: Browser BFF API
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm -C frontend install --frozen-lockfile
+      - run: pnpm -C frontend exec playwright install --with-deps chromium
+      - name: API regression suite on the validated commit
+        run: python3 scripts/test_stack.py api
+      - run: python3 scripts/test_stack.py integration
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: browser-integration-${{ github.sha }}
+          path: frontend/tests/reports/playwright
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: docs/pnpm-lock.yaml
+      - run: pnpm -C docs install --frozen-lockfile
+      - run: pnpm -C docs types:check
+      - run: pnpm -C docs build
+
+  required:
+    name: Required checks
+    if: always()
+    needs: [skills, node-lts-policy, template, backend, frontend, specs, integration, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail for missing, cancelled or failed required jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          CANONICAL: ${{ github.repository == 'Llamitai/wise' }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          for name, result in results.items():
+              expected = 'skipped' if name == 'template' and os.environ['CANONICAL'] != 'true' else 'success'
+              if result['result'] != expected:
+                  raise SystemExit(f"Required job {name}: {result['result']} (expected {expected})")
+          PYCODE

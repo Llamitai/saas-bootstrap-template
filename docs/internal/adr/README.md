@@ -13,5 +13,6 @@ límites de módulos, contratos, persistencia, seguridad o flujos core.
 
 ## Índice
 
-No hay ADRs activos específicos del core después de retirar la documentación
-histórica de producto.
+- [0001 — Ciclo de cambios y verificación](0001-ciclo-de-cambios-y-verificacion.md).
+- [0002 — Responsabilidad del skill de arquitectura backend](0002-responsabilidad-del-skill-de-arquitectura-backend.md).
+- [0003 — Auditoría y depuración de skills propios](0003-auditoria-y-depuracion-de-skills.md).

@@ -1,17 +1,24 @@
 ---
 name: tdd
-description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
+description: Apply the incremental red-green-refactor method when implementing behavior test-first. Use for TDD technique and testability decisions; verify-change owns check selection and diagnosis.
 ---
 
 # Test-Driven Development
+
+Use this method inside the active implementation workflow. It does not redefine
+scope, choose the project's verification gates or close acceptance. Python test
+syntax and fixtures come from python-testing; frontend tests follow the existing
+Vitest and Playwright conventions.
 
 ## Philosophy
 
 **Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't.
 
-**Good tests** are integration-style: they exercise real code paths through public APIs. They describe _what_ the system does, not _how_ it does it. A good test reads like a specification - "user can checkout with valid cart" tells you exactly what capability exists. These tests survive refactors because they don't care about internal structure.
+**Good tests** are integration-style: they exercise real code paths through public APIs. They describe _what_ the system does, not _how_ it does it. A good test reads like a specification - "tenant owner can invite a member" tells you exactly what capability exists. These tests survive refactors because they don't care about internal structure.
 
-**Bad tests** are coupled to implementation. They mock internal collaborators, test private methods, or verify through external means (like querying a database directly instead of using the interface). The warning sign: your test breaks when you refactor, but behavior hasn't changed. If you rename an internal function and tests fail, those tests were testing implementation, not behavior.
+**Bad tests** are coupled to implementation. They mock internal collaborators, test private methods, or inspect unrelated private implementation state. The warning sign: your test breaks when you refactor, but behavior hasn't changed. If you rename an internal function and tests fail, those tests were testing implementation, not behavior.
+
+Repository integration tests may query PostgreSQL directly to assert persistence, constraints and rollback. This exception does not justify private implementation assertions in use-case or UI tests.
 
 See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
 
@@ -46,17 +53,7 @@ RIGHT (vertical):
 
 When exploring the codebase, read `CONTEXT.md` (if it exists) so that test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
 
-Before writing any code:
-
-- [ ] Confirm with user what interface changes are needed
-- [ ] Confirm with user which behaviors to test (prioritize)
-- [ ] Identify opportunities for deep modules (small interface, deep implementation) — run the `/codebase-design` skill for the vocabulary and the testability checks
-- [ ] List the behaviors to test (not implementation steps)
-- [ ] Get user approval on the plan
-
-Ask: "What should the public interface look like? Which behaviors are most important to test?"
-
-**You can't test everything.** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
+Reuse the active OpenSpec change and already agreed interface/behaviors. Identify observable criteria, the first vertical test and any difficult testability seam (use codebase-design when useful). Ask only for critical missing decisions. Do not repeat approval, create another spec or impose TDD on mechanical/docs-only work. Prioritize the affected contract and important errors rather than every imagined edge case.
 
 ### 2. Tracer Bullet
 

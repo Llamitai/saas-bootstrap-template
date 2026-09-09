@@ -1,5 +1,7 @@
 # Cursor Pagination & Filters
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 Cursor-based, stable under concurrent inserts, index-friendly. No offset
 anywhere. Order is always `(created_at DESC, uuid DESC)`; the cursor is the
 `(timestamp, uuid)` of the last returned row.

@@ -1,24 +1,24 @@
 ---
 name: docker-hardening
 description: >
-  Comprehensive, stack-agnostic Docker security skill. Combines the CIS Docker Benchmark
-  (Level 1) audit with a 7-layer defense-in-depth model — image, build, runtime, network,
-  host, orchestration, monitoring. Use when the user asks to "harden Docker", "hardenize
-  containers", "audit Dockerfile security", "review compose security", "container security
-  review", "fix CIS Docker findings", "non-root container", "drop capabilities",
-  "scan images" (Docker Scout / Trivy / Grype / Snyk), "remove secrets from Dockerfile",
-  "SBOM / supply chain / image signing / cosign / content trust", "BuildKit secrets / frontend
-  pinning", "seccomp / AppArmor / SELinux profile", "user namespaces / rootless docker",
-  "Falco / runtime monitoring", "CIS Docker Benchmark", "docker-bench-security". Works for any
-  language or framework. Discovers all Dockerfiles + compose files, runs the audit, writes a
-  remediation report, and (with user consent) applies fixes.
+  Audit or fix Docker security controls for images, Compose and explicitly scoped
+  runtime infrastructure. Use for requested container hardening or concrete
+  security findings. Ordinary Docker edits, deployments and dependency updates
+  do not start a security audit.
 ---
 
 # Docker Hardening
 
 Audit and harden Docker artifacts against a layered security model. Backbone: the 12 **CIS Docker Benchmark — Level 1** controls. Extended with: minimal/distroless images, supply-chain integrity (SBOM + signing + BuildKit frontend pinning), runtime profiles (capabilities, seccomp, AppArmor/SELinux, user namespaces, rootless Docker), network segmentation, secrets management, and runtime monitoring.
 
-The skill is **prescriptive** (fixed audit shape) and **stack-agnostic** (works for Node, Python, Go, Java, .NET, Ruby, PHP, Rust, etc. — choose the matching snippet from `references/`).
+The skill uses a structured audit matrix and **stack-agnostic** references
+(choose the matching remediation for the installed language and runtime).
+
+Use only the control categories needed for the requested audit or finding.
+review-change owns a read-only diff review; this skill supplies Docker expertise
+when relevant. deploy-mvp owns production provisioning and
+resolve-dependabot-prs owns dependency PR resolution. Consulting this checklist
+does not start those workflows or authorize external changes.
 
 ---
 
@@ -44,7 +44,9 @@ Skip if the user only wants Dockerfile *style* refactoring with no security angl
 - **Stack agnostic.** Detect language by reading `FROM` + lockfiles. Adapt snippets from `references/remediations.md`.
 - **Evidence-based.** Every PASS/FAIL must cite `file:line` or a command's output. Without evidence → `MANUAL`.
 - **Minimum-diff fixes.** Smallest change that closes each FAIL. Never bundle unrelated refactors.
-- **Consent before mutating.** Always show the diff before applying.
+- **Preserve task scope.** A review stays read-only. When the user requests fixes,
+  implement and verify the authorized local changes without another approval
+  loop. External runtime/host mutations require authorization for that target.
 - **Defense in depth.** Don't treat a single control as "the fix" — every layer of [Section 4](#4-defense-in-depth-7-layers) reduces blast radius if another fails.
 
 ---
@@ -53,7 +55,10 @@ Skip if the user only wants Dockerfile *style* refactoring with no security angl
 
 ### Phase 0 — Scope & discovery
 
-1. Confirm scope in one short message: *"Auditing all Dockerfiles + compose files in this repo against the 12 CIS Level-1 controls + the 7-layer defense-in-depth checklist. OK?"* Accept narrower scope (single image / service) if offered.
+1. Read the requested scope and existing findings. For a specific image, service
+   or control, inspect that target and its dependencies. Use all repository
+   Docker artifacts only for a repository-wide audit; do not reconfirm a scope
+   the user already supplied.
 2. Discover artifacts:
    ```bash
    find . -maxdepth 5 -type f \( \
@@ -174,13 +179,16 @@ Snippets: [`references/advanced-hardening.md`](references/advanced-hardening.md)
 
 ### Phase 2 — Report
 
-Write the report to a sensible repo path:
+For a read-only review, return findings without writing a report file. For an
+audit that requests a durable report, reuse its specified path or the existing
+internal engineering documentation tree:
 
-- `docs/security/docker-hardening-report.md` if `docs/` exists
+- `docs/internal/docker-hardening-report.md` in this boilerplate
 - `security/docker-hardening-report.md` if `security/` exists
 - `docker-hardening-report.md` at repo root otherwise
 
-Create parent folders as needed. **Never inline the full report in chat** — chat gets only the summary table + the report path.
+Create parent folders only when a report file is in scope. A single-control fix
+needs its finding, diff and verification evidence, not a full audit document.
 
 Report structure:
 
@@ -225,15 +233,16 @@ For each FAIL — concrete paste-ready diff/snippet adapted to the project's sta
 - Consider rootless Docker for the runtime.
 ```
 
-### Phase 3 — Apply fixes (only with explicit consent)
+### Phase 3 — Apply requested fixes
 
-After delivering the report, ask: *"Want me to apply the FAIL remediations? I'll show each diff first."* For each remediation:
+If the task is audit/review only, return the findings. If the user has authorized
+remediation, continue with each in-scope finding:
 
-1. Show the exact diff.
-2. Apply via Edit/Write.
-3. Mentally re-score the affected control to confirm PASS.
+1. Make the smallest local change that addresses the finding.
+2. Validate the affected artifact with the applicable build/config/runtime check.
+3. Report the diff and observed result; leave untested runtime controls unverified.
 
-Never auto-apply. Never bundle unrelated refactors. Don't switch base-image families (e.g., debian → alpine → distroless) as part of a fix unless the user explicitly asked — surface that as a recommendation.
+Never bundle unrelated refactors. Don't switch base-image families (e.g., debian → alpine → distroless) as part of a fix unless the user explicitly asked — surface that as a recommendation. Production rollout remains a separate authorized action.
 
 ---
 
@@ -283,7 +292,7 @@ Apply at every layer:
 
 ## 6. Things this skill must NOT do
 
-- Don't apply fixes without showing the diff first.
+- Don't turn an audit-only request into implementation or production rollout.
 - Don't "wholesale rewrite" a Dockerfile — minimum diff per FAIL.
 - Don't declare PASS without file:line evidence.
 - Don't invent CIS section numbers — stick to the 12 listed in Section 3A.

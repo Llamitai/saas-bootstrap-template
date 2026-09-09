@@ -7,6 +7,15 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      - "frontend/src/shared/http/**"
+      - "frontend/src/features/auth/**"
+      - "frontend/src/app/api/**"
+      - "frontend/src/proxy.ts"
+      - "frontend/tests/**"
+      - "just/**"
+      - "justfile"
+      - "scripts/test_stack.py"
+      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

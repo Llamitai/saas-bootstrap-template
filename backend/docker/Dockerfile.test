@@ -1,0 +1,12 @@
+# Self-contained test image also works with a remote Docker-in-Docker daemon.
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+ENV UV_PROJECT_ENVIRONMENT=/venv UV_LINK_MODE=copy PYTHONPATH=/app
+ENV PATH="/venv/bin:$PATH"
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3-dev libffi-dev libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-install-project
+COPY . .
+CMD ["pytest", "-m", "not api"]

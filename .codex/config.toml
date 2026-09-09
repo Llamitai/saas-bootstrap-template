@@ -1,0 +1,36 @@
+# Optional project MCPs; enable locally when installed. Native AGENTS/skills discovery needs no config.
+# MCP Servers (merged with global config)
+[mcp_servers.codegraph]
+enabled = false
+command = "codegraph"
+args = ["serve", "--mcp"]
+
+[mcp_servers.shadcn]
+enabled = false
+command = "./node_modules/.bin/shadcn"
+args = ["mcp"]
+cwd = "frontend"
+startup_timeout_sec = 60
+[mcp_servers.chrome-devtools]
+enabled = false
+command = "npx"
+args = ["-y", "chrome-devtools-mcp@latest"]
+startup_timeout_sec = 60
+
+[mcp_servers.playwright]
+enabled = false
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]
+
+[mcp_servers.context7]
+enabled = false
+url = "https://mcp.context7.com/mcp"
+env_http_headers = { "CONTEXT7_API_KEY" = "CONTEXT7_API_KEY" }
+
+[mcp_servers.tailwindcss-server]
+enabled = false
+command = "./node_modules/.bin/tailwindcss-mcp"
+args = []
+cwd = "frontend"
+env = { "TAILWIND_VERSION" = "4" }
+startup_timeout_sec = 60

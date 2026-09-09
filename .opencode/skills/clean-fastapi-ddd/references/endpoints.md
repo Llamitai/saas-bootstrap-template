@@ -1,5 +1,7 @@
 # Endpoints, Requests, Presenters, Router
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 The presentation layer is thin: check permission, read the request DTO, call a
 use case or dispatch a command/query, format with a Presenter, return
 `ApiJSONResponse`. Endpoints live in `src/[bounded_context]/presentation/endpoints/`.
@@ -164,9 +166,9 @@ Notes:
 
 `src/common/infrastructure/responses/api_json.py`, extends
 `CamelCaseJSONResponse`. Its `render`:
-- a `Page` → `ApiResponse(data=items, pagination=Pagination.from_page(...), timestamp=...)`
-- any other jsonable content → `ApiResponse(data=content, timestamp=...)`
-- an error dict (`{"errors": ...}`) → only injects `timestamp`
+- a `Page` → `ApiResponse(data=items, pagination=Pagination.from_page(...), datetime=...)`
+- any other jsonable content → `ApiResponse(data=content, datetime=...)`
+- an error dict (`{"errors": ...}`) → only injects `datetime`
 
 `CamelCaseJSONResponse` (`responses/camel_case.py`) then converts every key to
 camelCase via `jsonable_encoder_camel` + `CamelCaseJSONEncoder`. Pass a `to_dict`
@@ -207,19 +209,18 @@ projects_router.add_api_route(
 
 ## Register in `config/router.py`
 
-Lazy-import the module router inside the `SERVER_MODE` guard, then `include_router`
-with the `/v1` prefix (the module already carries `/projects`):
+Include the module router in the existing composition. The installed service uses
+unconditional feature router registration:
 
 ```python
-# config/router.py
-if settings.SERVER_MODE in (AppMode.all, AppMode.platform):
-    from src.projects.presentation.router import projects_router
-    api_router.include_router(projects_router, prefix="/v1", tags=["projects"])
+from src.tenants.presentation.router import tenant_router
+
+api_router.include_router(tenant_router, prefix="/v1", tags=["tenants"])
 ```
 
-`AppMode` is `src.common.domain.enums.common.AppMode`. Use the modes that match
-your deploy topology (`all` / `platform` here are examples — replace with your
-own); `common_router` (health) is always included.
+The module carries its resource prefix; common health routes remain included.
+Only use a deployment-mode guard if that contract already exists in the project.
+See [config-bootstrap.md](config-bootstrap.md) for composition-root ownership.
 
 ## Common mistakes
 

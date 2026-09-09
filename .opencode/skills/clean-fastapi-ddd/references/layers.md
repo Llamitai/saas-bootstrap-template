@@ -1,5 +1,7 @@
 # Layers & file conventions
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 ## The 4 layers (dependencies point inward)
 
 ```
@@ -25,7 +27,11 @@ If you import SQLAlchemy from `application/`, you took a wrong turn — push the
 
 ## Where artifacts actually live — shared vs per-feature
 
-This layout is **not** strictly per-feature. Most domain types and ALL ORM builders live under `src/common/`. A feature module (`src/[bounded_context]`) typically owns only its **repository ABCs**, **use cases**, **bus handlers**, **SQL impls**, and **presentation** — while its entity, ORM model, builder, filters, enums, and exceptions live in `src/common/`. A minimal module can own *only* `domain/repositories/[entity].py` + `infrastructure/repositories/sql_[entity].py`.
+ORM models live centrally in `src/common/database/models/`. Shared domain concepts
+and their builders live in the shared core; module-private domain concepts remain
+with their feature. Repository interfaces, use cases, SQL adapters and presentation
+belong to the owning module. Copy its required shape: thin modules do not acquire
+extra layers merely to match the full-module example below.
 
 ```
 src/[bounded_context]/
@@ -48,13 +54,15 @@ src/[bounded_context]/
     └── router.py        # APIRouter(prefix=…, tags=[…]) + add_api_route(...)
 ```
 
-`src/common/` holds the shared core (see bottom). Entities, filters, exceptions, enums, mixins, service interfaces, and **builders** all live there.
+`src/common/` holds the shared core (see bottom). Shared domain concepts and their
+builders live there; module-private entities, filters, exceptions and ports stay
+in their owning module. All ORM models remain central in `common/database/models`.
 
 ## Naming conventions
 
 | Thing | Convention | Example / location |
 |---|---|---|
-| Domain entity | PascalCase `BaseModel` | `Project` — `src/common/domain/entities/projects/project.py` |
+| Shared domain entity | PascalCase `BaseModel` | `Tenant` — `src/common/domain/models/tenants/tenant.py` |
 | ORM model | suffix `ORM` | `ProjectORM` — `src/common/database/models/projects/project.py` |
 | Repository interface | `*Repository(ABC)` | `ProjectRepository` — `src/[bounded_context]/domain/repositories/` |
 | Repository SQL impl | `SQL*Repository`, `@dataclass`, field `session: AsyncSession` | `SQLProjectRepository` — `src/projects/infrastructure/repositories/sql_project.py` |
@@ -113,7 +121,8 @@ Shared core every feature depends on. No feature business logic here, but shared
 ```
 src/common/
 ├── domain/
-│   ├── entities/        # ALL domain entities (projects/, tenants/, common/) + mixins/
+│   ├── models/          # domain concepts shared by modules
+│   ├── entities/        # existing shared base types + mixins/
 │   ├── filters/         # *Filters(ListFilters) per area
 │   ├── enums/           # shared enums
 │   ├── exceptions/      # _base.py = DomainError; projects.py, tenants.py, …
@@ -140,7 +149,7 @@ src/common/
 
 ## Rules of thumb
 
-- A feature module owns: repository ABCs, use cases, bus handlers, SQL repos, presentation. Shared types (entities, builders, filters, enums, exceptions, service ifaces) go in `src/common/`.
+- A feature owns its private domain concepts, repository interfaces, use cases, SQL adapters and any presentation/bus wiring it needs. Shared concepts go in `src/common/`; all ORM models stay central.
 - Reused by ≥2 features → promote to `src/common/`.
 - Tests mirror source: `tests/[bounded_context]/...`.
 - Migrations live in `src/common/database/versions/` (Alembic) regardless of owning feature.

@@ -1,40 +1,37 @@
 #!/usr/bin/env python3
-"""Sync canonical agent skills from .claude/skills into the other agent packs.
+"""Sync .claude/skills to the versioned subsets in skill_inventory.json.
 
-Canonical source: .claude/skills/
-Targets:          .codex/skills/, .opencode/skills/, and .agents/skills/
-
-By default only skills that ALREADY exist in a target are synced (the
-Codex/OpenCode/shared packs are intentionally a subset of the Claude pack).
-Use --all to also copy claude-only skills into every target.
-
-Skills whose target copy already matches the canonical content byte-for-byte
-are reported as up-to-date and left untouched.
-
-Usage:
-    python3 scripts/sync_skills.py                 # sync shared skills
-    python3 scripts/sync_skills.py --dry-run       # list what would sync
-    python3 scripts/sync_skills.py --check         # exit 1 if any copy drifted
-    python3 scripts/sync_skills.py --all           # also copy claude-only skills
-    python3 scripts/sync_skills.py python-testing  # only sync the named skills
+--check and --dry-run never write. --all explicitly enrolls all canonical skills
+in every target; ordinary sync repairs only the declared inventory. Unknown
+content is reported for review, never deleted. Symlinks are not distributed.
 """
-
 from __future__ import annotations
 
 import argparse
 import filecmp
+import json
+import re
 import shutil
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL_DIR = REPO_ROOT / ".claude" / "skills"
-TARGET_DIRS = (
-    REPO_ROOT / ".codex" / "skills",
-    REPO_ROOT / ".opencode" / "skills",
-    REPO_ROOT / ".agents" / "skills",
-)
-EXCLUDED_NAMES = {"__pycache__", ".DS_Store"}
+EXCLUDED_NAMES = {"__pycache__", ".DS_Store", "node_modules", ".venv", ".pytest_cache", ".ruff_cache"}
+NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+
+
+def safe_path(root: Path, relative: str) -> Path:
+    parts = Path(relative).parts
+    if not parts or Path(relative).is_absolute() or ".." in parts:
+        raise ValueError(f"unsafe path: {relative}")
+    current = root
+    for part in parts:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f"symlinks are not managed: {current}")
+    if not current.resolve().is_relative_to(root.resolve()):
+        raise ValueError(f"path leaves checkout: {relative}")
+    return current
 
 
 def ignore_excluded(_dir: str, names: list[str]) -> set[str]:
@@ -42,11 +39,13 @@ def ignore_excluded(_dir: str, names: list[str]) -> set[str]:
 
 
 def relevant_files(root: Path) -> dict[Path, Path]:
-    files: dict[Path, Path] = {}
+    files = {}
     for path in root.rglob("*"):
         relative = path.relative_to(root)
         if EXCLUDED_NAMES & set(relative.parts):
             continue
+        if path.is_symlink():
+            raise ValueError(f"symlink in skill tree: {path}")
         if path.is_file():
             files[relative] = path
     return files
@@ -55,13 +54,10 @@ def relevant_files(root: Path) -> dict[Path, Path]:
 def skill_up_to_date(source: Path, target: Path) -> bool:
     if not target.is_dir():
         return False
-    source_files = relevant_files(source)
-    target_files = relevant_files(target)
-    if source_files.keys() != target_files.keys():
-        return False
-    return all(
-        filecmp.cmp(source_files[relative], target_files[relative], shallow=False)
-        for relative in source_files
+    source_files, target_files = relevant_files(source), relevant_files(target)
+    return source_files.keys() == target_files.keys() and all(
+        filecmp.cmp(source_files[name], target_files[name], shallow=False)
+        for name in source_files
     )
 
 
@@ -73,87 +69,63 @@ def sync_skill(source: Path, target: Path, dry_run: bool) -> None:
     shutil.copytree(source, target, ignore=ignore_excluded)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="list what would sync without copying anything",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="like --dry-run, but exit 1 when any target copy is out of sync",
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="also copy skills that exist only in .claude/skills",
-    )
-    parser.add_argument(
-        "skills",
-        nargs="*",
-        metavar="SKILL",
-        help="only sync these skill names (default: every canonical skill)",
-    )
-    args = parser.parse_args()
-    if args.check:
-        args.dry_run = True
-
-    if not CANONICAL_DIR.is_dir():
-        print(f"error: canonical dir not found: {CANONICAL_DIR}", file=sys.stderr)
+def main(argv: list[str] | None = None, *, root: Path = REPO_ROOT) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--all", action="store_true", help="enroll every canonical skill")
+    parser.add_argument("skills", nargs="*")
+    args = parser.parse_args(argv)
+    readonly = args.check or args.dry_run
+    try:
+        canonical = safe_path(root, ".claude/skills")
+        inventory_path = safe_path(root, "scripts/skill_inventory.json")
+        inventory = json.loads(inventory_path.read_text())
+        targets = inventory["targets"]
+        if not isinstance(targets, dict) or not targets:
+            raise ValueError("inventory needs nonempty targets")
+        known = {p.name for p in canonical.iterdir() if p.is_dir() and p.name not in EXCLUDED_NAMES}
+        if set(args.skills) - known:
+            raise ValueError(f"unknown skills: {sorted(set(args.skills) - known)}")
+        operations = []
+        for target_name, required in targets.items():
+            if not isinstance(required, list) or len(required) != len(set(required)):
+                raise ValueError(f"invalid inventory: {target_name}")
+            target_dir = safe_path(root, target_name)
+            if args.all:
+                required = sorted(known)
+                targets[target_name] = required
+            for name in required:
+                if not NAME.fullmatch(name) or name not in known:
+                    raise ValueError(f"{target_name}: unknown canonical skill {name!r}")
+                source = safe_path(root, f".claude/skills/{name}")
+                if not (source / "SKILL.md").is_file():
+                    raise ValueError(f"missing canonical SKILL.md: {source}")
+                relevant_files(source)
+            if target_dir.exists():
+                unexpected = {p.name for p in target_dir.iterdir() if p.name not in EXCLUDED_NAMES} - set(required)
+                if unexpected:
+                    raise ValueError(f"{target_name}: orphan/unmanaged content {sorted(unexpected)}; review inventory, no files removed")
+            for name in required:
+                target = safe_path(root, f"{target_name}/{name}")
+                if target.exists():
+                    relevant_files(target)
+                if args.skills and name not in args.skills:
+                    continue
+                source = canonical / name
+                if not skill_up_to_date(source, target):
+                    operations.append((source, target))
+        # Validate every path before performing any mutation.
+        for source, target in operations:
+            print(f"{'missing' if not target.exists() else 'different'}: {target.relative_to(root)}; repair: just sync-skills {source.name}")
+            sync_skill(source, target, readonly)
+        if args.all and not readonly:
+            inventory_path.write_text(json.dumps(inventory, indent=2) + "\n")
+        print(f"skills: {len(operations)} copies {'need sync' if readonly else 'updated'}")
+        return int(args.check and bool(operations))
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"error: {error}; inspect scripts/skill_inventory.json", file=sys.stderr)
         return 1
-
-    canonical_skills = sorted(
-        entry
-        for entry in CANONICAL_DIR.iterdir()
-        if entry.is_dir() and entry.name not in EXCLUDED_NAMES
-    )
-    if args.skills:
-        known = {skill.name for skill in canonical_skills}
-        unknown = sorted(set(args.skills) - known)
-        if unknown:
-            print(f"error: unknown skill(s): {', '.join(unknown)}", file=sys.stderr)
-            return 1
-        canonical_skills = [
-            skill for skill in canonical_skills if skill.name in set(args.skills)
-        ]
-
-    verb = "would sync" if args.dry_run else "synced"
-    synced = 0
-    up_to_date = 0
-    skipped = 0
-
-    for target_dir in TARGET_DIRS:
-        if not target_dir.is_dir():
-            print(f"skipping missing target dir: {target_dir.relative_to(REPO_ROOT)}")
-            continue
-        for skill in canonical_skills:
-            target = target_dir / skill.name
-            if not target.exists() and not args.all:
-                skipped += 1
-                continue
-            if skill_up_to_date(skill, target):
-                print(f"up-to-date: {skill.name} -> {target_dir.relative_to(REPO_ROOT)}/")
-                up_to_date += 1
-                continue
-            sync_skill(skill, target, args.dry_run)
-            print(f"{verb}: {skill.name} -> {target_dir.relative_to(REPO_ROOT)}/")
-            synced += 1
-
-    print(
-        f"\nsummary: {synced} skill copies {verb.replace('would sync', 'to sync')}, "
-        f"{up_to_date} up-to-date, "
-        f"{skipped} claude-only skill copies skipped"
-        f"{'' if args.all else ' (use --all to include them)'}"
-    )
-    if args.check and synced:
-        print(
-            "error: skill copies are out of sync; run `just sync-skills`",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
 
 
 if __name__ == "__main__":

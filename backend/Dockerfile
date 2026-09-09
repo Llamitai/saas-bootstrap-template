@@ -79,7 +79,7 @@ ENV PATH="/venv/bin:$PATH"
 WORKDIR /app
 
 COPY pyproject.toml uv.lock /app/
-RUN uv sync --no-install-project
+RUN uv sync --locked --no-install-project
 
 COPY docker/entrypoint /entrypoint
 RUN sed -i 's/\r$//g' /entrypoint

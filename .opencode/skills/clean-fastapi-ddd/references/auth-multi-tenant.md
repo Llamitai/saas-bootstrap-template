@@ -1,5 +1,7 @@
 # Authentication & Multi-tenant
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 JWT bearer auth + tenant isolation. Two independent identities: the **user** (from `Authorization: Bearer`) and the **active tenant** (from the `X-Tenant` header). Both must resolve for tenant-scoped reads/writes.
 
 ## JWT strategy

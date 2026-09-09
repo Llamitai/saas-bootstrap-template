@@ -1,0 +1,16 @@
+**
+!pyproject.toml
+!uv.lock
+!alembic.ini
+!ruff.toml
+!ty.toml
+!src
+!src/**
+!config
+!config/**
+!tests
+!tests/**
+!scripts
+!scripts/**
+**/__pycache__
+**/*.pyc

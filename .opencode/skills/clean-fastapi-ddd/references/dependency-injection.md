@@ -1,5 +1,7 @@
 # Dependency Injection: AppContext / DomainContext / BusContext
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 Every request gets a fresh graph: one `AsyncSession` → all repos/services
 (`DomainContext`) → buses with handlers wired (`BusContext`) → `AppContext`.
 FastAPI memoizes each dep within a request, so the session/domain/bus are
@@ -71,8 +73,10 @@ Tests get `MockDomainSingleton` / `MockBusSingleton` (`src/common/infrastructure
 
 ### `build_async_domain(session)` — `src/common/infrastructure/domain_builder.py`
 
-Instantiates every `SQL*` repo with the **same** `session` (that single session
-is what makes one transaction span multiple repos). Stateless/shared services
+Instantiates every `SQL*` repo with the **same** request-scoped `session`. Sharing
+the session does not make independently committing repository methods one atomic
+operation; cross-repository atomicity requires the explicit transaction interface
+described in [repositories.md](repositories.md). Stateless/shared services
 are `@lru_cache(maxsize=1)` singletons (e.g. `get_notification_service`,
 `get_event_publisher`) so one HTTP/Redis pool is reused across requests and
 background jobs.

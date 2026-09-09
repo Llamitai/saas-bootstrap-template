@@ -106,7 +106,13 @@ async def test_execute__returns_user(use_case, tenant_user):
 async def test_execute__not_found_raises(use_case):
     use_case.query_bus.ask.return_value = None
 
-    expect(calling(use_case.execute)).to(raise_error(EntityNotFound))
+    caught_error = None
+    try:
+        await use_case.execute()
+    except EntityNotFound as error:
+        caught_error = error
+
+    expect(caught_error).to(be_a(EntityNotFound))
 ```
 
 ### Testing CommandBus dispatch
@@ -358,6 +364,12 @@ async def test_update__changes_first_name(use_case, repository):
 
 ## Always Test Error Paths
 
+Use `expects` for exception assertions too. For an async method, await the call,
+capture only the expected exception type and check it with `expect(error).to(be_a(...))`.
+If no exception occurs, the captured value remains None and the assertion fails;
+unexpected exceptions propagate. A synchronous `raise_error` matcher is appropriate
+for a synchronous callable, but does not execute an async method body.
+
 Don't just test happy paths. Every public method should have tests for:
 - Not found / empty results
 - Invalid input / validation errors
@@ -368,9 +380,13 @@ Don't just test happy paths. Every public method should have tests for:
 async def test_execute__not_found_raises(use_case, repository):
     repository.find.return_value = None
 
-    expect(calling(use_case.execute, user_id=uuid4())).to(
-        raise_error(EntityNotFound)
-    )
+    caught_error = None
+    try:
+        await use_case.execute(user_id=uuid4())
+    except EntityNotFound as error:
+        caught_error = error
+
+    expect(caught_error).to(be_a(EntityNotFound))
 
 
 def test_check_permission__returns_false_for_inactive_user():

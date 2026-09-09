@@ -37,3 +37,13 @@ y `common` (infra compartida: database/models, settings, middlewares).
 ## Docs profundas
 En [`../docs/internal/`](../docs/internal): `backend/api-reference.md`,
 `architecture/erd-diagram.md`, `backend/debugging.md`, `adr/`.
+
+## Flujo de cambios y comprobaciones
+
+El [perfil](../docs/internal/project-profile.md) mantiene capacidades y contratos;
+la [guía de verificación](../docs/internal/verification.md) explica requisitos,
+aislamiento y selección. `just backend quality` corrige archivos; `just backend
+check` comprueba sin autofix. `just backend test` usa servicios/DB exclusivos.
+Cambios funcionales usan una change OpenSpec y criterios observables; checks
+verdes no sustituyen la validación. ORM y dominio compartido permanecen en
+`src/common/database/models` y `src/common/domain/models` respectivamente.

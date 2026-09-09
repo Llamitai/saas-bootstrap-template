@@ -1,5 +1,7 @@
 # CQRS: Commands, Queries, Buses
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 Three buses live on `BusContext` (`src/common/domain/contexts/bus.py`):
 `command_bus`, `query_bus`, `event_bus`. Writes → `CommandBus`. Reads → `QueryBus`.
 Commands run **sync** (in-request) or **async** (enqueued to SAQ for a worker).

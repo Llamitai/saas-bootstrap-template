@@ -1,5 +1,7 @@
 # Use Cases (Application Layer)
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 A use case orchestrates one operation. It takes repositories, domain services, and
 (only when reading cross-module data) a `QueryBus` as constructor params, mutates
 domain entities, and returns a domain entity / `Page` / tuple. It **never** imports

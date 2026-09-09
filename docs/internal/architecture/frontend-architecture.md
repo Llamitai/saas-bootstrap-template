@@ -4,9 +4,9 @@ Este documento describe el estado ideal de la arquitectura del frontend del
 proyecto. Es la fuente de verdad para decisiones de estructura, limites entre
 modulos, SDD/TDD, herramientas y Definition of Done.
 
-`AGENTS.md` en la raiz del repo existe solo como puntero corto a este archivo.
-No debe duplicar reglas de arquitectura, para evitar documentos paralelos que
-puedan quedar desincronizados.
+`AGENTS.md` es el mapa compartido del unirepo; enlaza este documento para reglas
+frontend. Las rutas `src/`, `tests/` y `scripts/` de esta guía son relativas a
+`frontend/`; OpenSpec y comandos just se resuelven desde la raíz Git.
 
 ## 1. Principios de arquitectura
 
@@ -37,8 +37,9 @@ Estos principios definen el estado objetivo del frontend.
    documentales o de UI sin comportamiento usan verificacion enfocada.
 9. Los limites de import se verifican con herramientas, no con disciplina manual:
    `scripts/check-import-boundaries.mjs` es la unica verificacion de boundaries.
-10. La Definition of Done de un cambio funcional frontend es `pnpm verify` en
-    verde. Cambios mecanicos o documentales usan el subconjunto de gates que
+10. La verificación técnica de un cambio funcional frontend exige `pnpm verify` en
+    verde. El cierre añade aceptación observable por criterio/revisión mediante
+    validate-change, según [verification.md](../verification.md). Cambios mecanicos o documentales usan el subconjunto de gates que
     cubra su riesgo, sin saltar `check:architecture` cuando modifican imports.
 
 ## 2. Flujo SDD
@@ -55,7 +56,9 @@ El flujo queda asi:
 - **Plan**: `openspec/changes/<change-id>/design.md`.
 - **Tasks**: `openspec/changes/<change-id>/tasks.md`.
 - **Implement**: estructura y receta feature-based descritas en este documento.
-- **Validate**: `openspec validate <change-id> --strict`.
+- **Verificación estructural**: `just spec-check <change-id>` desde la raíz.
+- **Aceptación**: validate-change contrasta criterios y observaciones vigentes en
+  tasks.md; la CLI OpenSpec no valida la necesidad del usuario.
 - **Archive**: al cerrar el cambio, OpenSpec sincroniza el estado aceptado hacia
   `openspec/specs/`.
 
@@ -122,7 +125,8 @@ El stack objetivo del frontend es:
 - Biome para lint y formato.
 - Vitest + Testing Library para unit/component tests.
 - Playwright para E2E.
-- MSW para mocks de `/api` en tests.
+- MSW es el objetivo para mocks `/api`; aún no es una dependencia instalada.
+  Los tests actuales usan dobles del transporte.
 
 ### Realtime
 
@@ -157,7 +161,7 @@ internos de arquitectura deben expresar su capa con claridad.
 
 ## 4. Estructura objetivo
 
-La raiz del repo es el frontend. La arquitectura objetivo tiene cuatro capas:
+El frontend está en `frontend/` dentro del unirepo. Su arquitectura tiene cuatro capas:
 
 ```text
 src/
@@ -242,7 +246,8 @@ Notas sobre el estado actual frente a este arbol objetivo:
   raiz; los segmentos `[domain]/` y `admin/` son objetivo, aún no
   implementados.
 - `tests/` hoy contiene `components/`, `setup.ts` y `render-with-intl.tsx`;
-  `tests/unit` y `tests/end-to-end` son objetivo, aún no implementados.
+  `tests/unit` y `tests/end-to-end` ya existen; el smoke y las pruebas con API real
+  se seleccionan de forma diferenciada.
 
 ### Responsabilidades por capa
 
@@ -278,7 +283,8 @@ Esto evita separar fetchers en una carpeta y hooks en otra.
 ### Adapters solo cuando ganan su lugar
 
 El acceso a datos por defecto es una funcion async que usa `authHttp` o
-`serverHttp`, colocalizada con su hook. En tests se mockea `/api` con MSW.
+`serverHttp`, colocalizada con su hook. En tests se usan los dobles de transporte existentes; MSW requiere instalación
+y setup explícitos antes de emplearlo.
 
 No se crean interfaces ni clases repositorio para envolver Axios sin aportar
 comportamiento. Un modulo asi es shallow: su interfaz es casi igual de compleja
@@ -331,7 +337,7 @@ El producto tiene dos tipos de superficie.
 
 ### Publico o solo-lectura
 
-Ejemplos: marketing, landing, contenido SEO.
+Ejemplos: acceso, invitaciones y contenido público autorizado del producto.
 
 Estado objetivo:
 
@@ -371,7 +377,9 @@ boundaries y forma parte de `pnpm verify`.
 
 ### `scripts/check-import-boundaries.mjs`
 
-El script recorre los archivos fuente, extrae sus imports y verifica:
+El script recorre el AST TypeScript, incluyendo imports, reexports, import type,
+require e imports dinámicos literales. No demuestra ausencia de fugas transitivas
+ni resuelve imports dinámicos calculados. Verifica:
 
 - No imports relativos (`./*`, `../*`); todo import usa aliases `@/...`.
 - `src/shared/**` no importa de `entities`, `features` ni `app`.
@@ -786,7 +794,7 @@ riesgo real del cambio.
 Usar Vitest para:
 
 - schemas zod y validaciones.
-- request functions y manejo de errores con MSW.
+- request functions y errores con dobles del transporte; MSW cuando se incorpore.
 - hooks de React Query.
 - componentes y estados de UI.
 - guards, permisos, stores y helpers.
@@ -1032,11 +1040,12 @@ Scripts objetivo en `package.json`:
   "check": "biome check .",
   "type-check": "tsc --noEmit",
   "test": "vitest run",
-  "test:e2e": "playwright test --pass-with-no-tests",
+  "test:e2e": "playwright test",
   "lint:boundaries": "node scripts/check-import-boundaries.mjs",
   "check:architecture": "pnpm lint:boundaries",
   "gen:feature": "node scripts/gen-feature.mjs",
-  "verify": "pnpm type-check && pnpm check && pnpm test && pnpm check:architecture && pnpm build"
+  "check:static": "pnpm type-check && pnpm check && pnpm check:architecture",
+  "verify": "pnpm check:static && pnpm test && pnpm build"
 }
 ```
 
@@ -1046,14 +1055,15 @@ Vitest:
 - `tests/setup.ts`.
 - aliases alineados con `tsconfig`.
 - helper que monta `NextIntlClientProvider`.
-- MSW para mockear `/api`.
+- Dobles de transporte actuales; MSW es objetivo pendiente de instalación/setup.
 - handlers derivados de los mismos esquemas zod cuando sea posible.
 
 Playwright:
 
-- tests en `tests/end-to-end` (objetivo, aún no implementado; por eso
-  `test:e2e` usa `--pass-with-no-tests`).
-- `baseURL: http://localhost:3000`.
-- `webServer.command = "pnpm dev"`.
+- Tests en `tests/end-to-end`; cero tests seleccionados falla.
+- E2E_PORT configura un servidor propio (3100 por defecto en smoke).
+- Playwright arranca Next y nunca reutiliza un servidor ajeno.
+- `just integration` configura un stack API exclusivo y activa las specs reales.
+- Reportes por E2E_RUN_ID; serializar suites en el mismo checkout por `.next`.
 
 CI ejecuta `pnpm verify`.

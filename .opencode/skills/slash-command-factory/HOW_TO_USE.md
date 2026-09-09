@@ -123,7 +123,7 @@ After installation, how you invoke the command depends on **where** it's install
 - You can type `/research-business` instead of `/my-plugin:research-business` if no naming conflicts exist
 - **Exception**: When `command-name` = `plugin-name` (e.g., `/foo:foo`), you **must** use the full format
 
-For full details, see the [Slash Command Naming Convention](../../../../README.md#slash-command-naming-convention) in the root README.
+For full details, see the [Slash Command Naming Convention](../../../README.md#slash-command-naming-convention) in the root README.
 
 ---
 

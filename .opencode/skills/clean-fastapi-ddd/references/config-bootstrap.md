@@ -1,5 +1,7 @@
 # Config & Bootstrap
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 Boot order: `configure_logging()` → `init_monitoring()` → build `app` (`config/main.py`)
 → `lifespan` startup → routers (`config/router.py`) → middlewares → exception handlers.
 Worker process is separate: `config/tasks.py` (`worker_settings`).
@@ -27,7 +29,7 @@ def redis_url(self) -> str:                      # auth in prod only
 def all_cors_origins(self) -> list[str]:         # from CORS_ORIGINS, trailing / stripped
 ```
 
-Other key fields: `SERVER_MODE: AppMode = all`, `DEBUG: bool = False`, `THROTTLE_ENABLED`,
+Other key fields: `DEBUG: bool = False`, `THROTTLE_ENABLED`,
 `STAGE`, `ENVIRONMENT`, `PROCESS_LABEL`, JWT (`JWT_SECRET_KEY` defaults to `secrets.token_urlsafe(32)`),
 monitoring keys, and one config block per external service you wire in (object store, SMTP,
 and any third-party API your modules call). CORS env is `CORS_ORIGINS` (comma-string or list,
@@ -100,20 +102,20 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 app.add_exception_handler(RateLimitExceededError, rate_limit_exception_handler)
 ```
 
-## Router & SERVER_MODE — `config/router.py`
+## Router composition — `config/router.py`
 
-`api_router = APIRouter()`. `common_router` (`/`, `/health` — Redis ping) is ALWAYS mounted, no prefix.
-Feature routers mount under `/v1`, imported lazily inside the `SERVER_MODE` branch. One image; the
-`SERVER_MODE` env var picks which surface boots — replace `all` / `platform` with your own deploy topology:
+The composition root includes common health routes and the feature routers for the
+active service. The installed router is single-mode; it does not need SERVER_MODE:
 
 ```python
-if settings.SERVER_MODE in (AppMode.all, AppMode.platform):
-    # user / auth / me / tenant / projects / ...
-    api_router.include_router(projects_router, prefix="/v1", tags=["projects"])
-    ...
+from src.tenants.presentation.router import tenant_router
+
+api_router.include_router(tenant_router, prefix="/v1", tags=["tenants"])
 ```
 
-No per-feature branching, no separate builds — one image, env-controlled mode.
+A project with an existing deployment-mode contract may condition this composition
+on its configured modes. Changing topology belongs to that project's operational
+design; do not add mode branches from a reference example.
 
 ## SAQ worker — `config/tasks.py`
 
@@ -123,7 +125,7 @@ Separate process: `saq config.tasks.worker_settings`. Does NOT import `app`.
 worker_settings = {
     "queue": Queue.from_url(settings.redis_url),
     "functions": [handle_command],          # single generic dispatcher
-    "cron_jobs": _cron_jobs,                 # only when SERVER_MODE includes the platform surface
+    "cron_jobs": _cron_jobs,                 # only the schedules enabled by the active profile
     "concurrency": _calculate_concurrency(), # = DB_POOL_SIZE + DB_MAX_OVERFLOW
     "startup": startup, "shutdown": shutdown,
 }
@@ -144,8 +146,8 @@ class CamelCaseJSONResponse(FastAPIJSONResponse):   # default_response_class on 
 
 # src/common/infrastructure/responses/api_json.py — wraps body in ApiResponse envelope
 class ApiJSONResponse(CamelCaseJSONResponse):
-    # Page  -> {data: items, pagination, timestamp}
-    # else  -> {data: content, timestamp}; dict with "errors" -> adds timestamp
+    # Page  -> {data: items, pagination, datetime}
+    # else  -> {data: content, datetime}; dict with "errors" -> adds datetime
 ```
 
 `ApiResponse` lives in `src/common/domain/entities/common/`. Incoming JSON is converted
@@ -156,21 +158,16 @@ camelCase→snake_case by `CamelCaseToSnakeCaseMiddleware` before validation.
 `init_monitoring()` (API, gated by `settings.monitoring_enabled`) and a worker variant for the
 SAQ process. Wire your error-reporting / APM integrations here; `server_name=settings.PROCESS_LABEL.value`.
 
-## Run locally (`make` — illustrative)
+## Runtime configuration ownership
 
-```
-make up / down / bash / logs
-make migrate                 # alembic upgrade head
-make migrations ARG="msg"    # autogenerate revision
-make test                    # pytest
-make format && make lint && make tycheck   # before commits (ruff + ty + pytest as example toolchain)
-```
+The [project profile](../../../../docs/internal/project-profile.md) defines active
+services and setup. The [verification guide](../../../../docs/internal/verification.md)
+owns command selection and test environments. This reference describes composition
+and lifecycle; it does not prescribe a development, migration or pre-commit sequence.
 
-API container runs uvicorn on `config.main:app`; the worker container runs
-`saq config.tasks.worker_settings`. Both read the same `settings`.
-
-Infra it talks to: PostgreSQL, Redis, an S3-compatible object store, and SMTP — provisioned in
-your local compose / bootstrap. Keep service names and ports out of code; read them from `settings`.
+API and worker processes may share typed settings while constructing their own
+contexts. Only provision PostgreSQL, Redis, storage or SMTP when the active profile
+requires them. Read service addresses from settings rather than fixing ports in code.
 
 ## Common mistakes
 
@@ -182,7 +179,7 @@ your local compose / bootstrap. Keep service names and ports out of code; read t
   via the DI helpers in `dependencies/common.py`.
 - Returning a plain dict and expecting an envelope — `default_response_class` is
   `CamelCaseJSONResponse` (camelizes but does NOT wrap); use `ApiJSONResponse` for the `data`/`pagination` envelope.
-- Building separate images per `SERVER_MODE` — one image, env-controlled mode.
+- Adding deployment modes or services solely to match an illustrative bootstrap.
 
 See also: `dependency-injection.md` (app.state → Depends chain), `errors.md` (handlers),
 `background-jobs.md` + `cqrs-buses.md` (SAQ worker), `pagination.md` (Page envelope).

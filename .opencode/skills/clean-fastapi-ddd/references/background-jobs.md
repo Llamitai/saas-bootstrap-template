@@ -1,10 +1,13 @@
 # Background Jobs (SAQ + Redis)
 
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
 Async tasks run on **SAQ** (Simple Async Queue) over Redis. The same `Command`
 type runs inline in a request OR on the worker — the only difference is the
 `run_async` flag at dispatch. Worker entrypoint: `config/tasks.py`.
 
-Run the worker: `saq config.tasks.worker_settings`.
+The project profile defines worker startup and enabled schedules. This reference
+describes the queue/session connection for an active SAQ integration.
 
 ## Enqueue from an endpoint / use case
 
@@ -119,7 +122,7 @@ marked done, or upsert instead of insert).
 ## Cron / scheduled jobs
 
 Cron functions take only `ctx` (no payload), rebuild the bus, and dispatch a
-command inline. Register them as `CronJob` in `_cron_jobs`, gated by `SERVER_MODE`:
+command inline. An active schedule is registered as `CronJob` in `_cron_jobs`:
 
 ```python
 # config/tasks.py
@@ -128,14 +131,13 @@ async def archive_stale_projects(ctx: dict[str, Any]) -> None:
         bus = build_async_bus(session=session, domain=build_async_domain(session=session))
         await bus.command_bus.dispatch(command=ArchiveStaleProjectsCommand())
 
-_cron_jobs = (
-    [
-        CronJob(archive_stale_projects, cron="0 * * * *", retries=DEFAULT_WORKER_RETRIES),
-    ]
-    if settings.SERVER_MODE in (AppMode.all, AppMode.platform)
-    else []
-)
+_cron_jobs = [
+    CronJob(archive_stale_projects, cron="0 * * * *", retries=DEFAULT_WORKER_RETRIES),
+]
 ```
+
+Only apply a mode guard when the project already defines deployment modes;
+do not introduce SERVER_MODE to install a schedule.
 
 ## Redis / queue settings
 
@@ -146,7 +148,7 @@ _cron_jobs = (
 - Worker concurrency = `DB_POOL_SIZE + DB_MAX_OVERFLOW` (`_calculate_concurrency`),
   so concurrent jobs never exceed the DB pool.
 
-## Add a new async task end-to-end
+## Required connections for an async task
 
 1. Define the `Command` (`src/[bounded_context]/.../commands/` or `src/common/application/commands/`)
    as a `@dataclass(Command)` with `to_dict` / `from_dict` that fully serialize
@@ -168,7 +170,7 @@ _cron_jobs = (
 - **Closing over the request `AsyncSession`** in a deferred command → it's gone by
   the time the worker runs. The worker makes its own.
 - **Non-idempotent handlers** → retries duplicate side effects.
-- **New cron not firing** → check `SERVER_MODE` gate in `_cron_jobs`.
+- **New cron not firing** → check its registration and the schedules enabled by the profile.
 
 ## Cross-links
 

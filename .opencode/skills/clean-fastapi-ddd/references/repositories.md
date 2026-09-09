@@ -1,22 +1,28 @@
 # Models, entities, repositories
 
-Worked end-to-end example below: `Project` (`src/projects` + `src/common`). The same shape applies to every aggregate; swap `[bounded_context]`/`[entity]`/`[Entity]`/`[area]` for your own names.
+Applicability: paths are relative to backend/. Read the project profile and matching implementation first. Tenant, bus, pagination, job and deployment-mode examples apply only to active capabilities; do not add modes/services or remove installed authorization from these examples.
+
+The illustrative `Project` below uses a shared domain concept and central builder.
+For a module-private concept, keep its domain model and builder in that module;
+the ORM remains central in both shapes. Choose the matching installed exemplar.
 
 ## Four artifacts per aggregate
 
 | Layer | Path | Class / fn |
 |---|---|---|
-| Domain entity | `src/common/domain/entities/[area]/[entity].py` | `Project(BaseModelMixin, TimestampMixin)` |
+| Domain entity | `src/common/domain/models/[area]/[entity].py` (shared; private concepts stay in their module) | `Project(BaseModelMixin, TimestampMixin)` |
 | ORM model | `src/common/database/models/[area]/[entity].py` | `ProjectORM(Base, UUIDTimestampMixin)` |
 | Builder (ORM→entity) | `src/common/infrastructure/builders/[area]/[entity].py` | `build_project(orm) -> entity` |
 | Repo ABC + impl | `src/[bounded_context]/domain/repositories/[entity].py` + `src/[bounded_context]/infrastructure/repositories/sql_[entity].py` | `ProjectRepository` / `SQLProjectRepository` |
 
-Entities + ORM + builders live under `src/common/` (shared). The repo ABC and `SQL*` impl live in the owning feature module.
+ORM models remain central. Shared domain entities and their builders belong to
+the shared core; module-private entities and their builders stay with the module.
+The repository ABC and SQL implementation belong to the owning module.
 
 ## Domain entity (Pydantic)
 
 ```python
-# src/common/domain/entities/projects/project.py
+# src/common/domain/models/projects/project.py (illustrative shared concept)
 class Project(BaseModelMixin, TimestampMixin):
     tenant_id: UUID
     name: str
@@ -149,7 +155,7 @@ async def atomic_transaction(session: AsyncSession) -> AsyncGenerator[AsyncSessi
 - Wraps every **write** path (`persist`, `delete`, soft-delete). Read methods do not open it.
 - Commits on clean exit, rolls back on any exception. Never call `session.commit()` directly.
 - `await session.flush()` inside the block to push INSERT/UPDATE before a read/`refresh`; the actual COMMIT happens when the context exits.
-- Cross-repo atomicity: orchestrate the calls inside one `atomic_transaction(session)` at the use-case layer sharing the same session (see `use-cases.md`).
+- Cross-repository atomicity needs an explicit domain-facing operation or transaction interface backed by infrastructure. Inspect the existing transaction contract; separately committing repository calls are not one atomic operation. Keep SQLAlchemy sessions and transaction helpers out of application use cases.
 
 ## Eager loading (N+1)
 
@@ -200,13 +206,13 @@ Forgetting this on a `UUIDTenantTimestampMixin` table is a cross-tenant leak. Se
 
 ## Wiring a new model+entity+repo
 
-1. Entity: `src/common/domain/entities/[area]/[entity].py` — extend `BaseModelMixin, TimestampMixin`, add `to_persist_dict`.
+1. Entity: `src/common/domain/models/[area]/[entity].py` (shared; private concepts stay in their module) — extend `BaseModelMixin, TimestampMixin`, add `to_persist_dict`.
 2. ORM: `src/common/database/models/[area]/[entity].py` — `Base + UUIDTimestampMixin` (or `UUIDTenantTimestampMixin` if tenant-scoped, `+ SoftDeleteMixin` for soft delete). Import it in the models `__init__` so migrations see it.
 3. Builder: `src/common/infrastructure/builders/[area]/[entity].py` — `build_[entity](orm) -> entity`, coercing string columns with `EnumClass.from_value(...)`.
 4. ABC: `src/[bounded_context]/domain/repositories/[entity].py`.
 5. Impl: `src/[bounded_context]/infrastructure/repositories/sql_[entity].py` — `@dataclass`, `session: AsyncSession`, writes in `atomic_transaction`.
 6. Register the repo in the module's DI context (`dependency-injection.md`).
-7. Migration: e.g. `make migrations ARG="add [entity] table"` then `make migrate`. Commit the migration with the model change.
+7. A persisted model must have a corresponding Alembic revision. [schema-change](../../schema-change/SKILL.md) owns generation, execution and data-preservation verification; this wiring map does not schedule migrations or commits.
 
 ## Common mistakes
 

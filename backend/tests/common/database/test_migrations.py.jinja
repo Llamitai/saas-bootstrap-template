@@ -1,0 +1,131 @@
+"""Exercise the real Alembic chain, data constraints and cleanup on PostgreSQL."""
+
+from collections.abc import Generator
+from uuid import uuid4
+
+import pytest
+from alembic import command
+from alembic.config import Config
+from expects import be_none, contain, equal, expect, raise_error
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.exc import IntegrityError
+
+from src.common.settings import settings
+
+
+@pytest.fixture
+def migrated_connection() -> Generator[tuple[Connection, Config[% raw %]]][% endraw %]:
+    url = make_url(str(settings.database_url))
+    name = f"migration_test_{uuid4().hex}"
+    admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    engine = create_engine(url.set(database=name))
+    created = False
+    try:
+        with admin.connect() as connection:
+            connection.execute(text(f'CREATE DATABASE "{name}"'))
+            created = True
+        with engine.connect() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "20260707_000001")
+            yield connection, config
+    finally:
+        engine.dispose()
+        if created:
+            with admin.connect() as connection:
+                connection.execute(text(f'DROP DATABASE "{name}" WITH (FORCE)'))
+        admin.dispose()
+
+
+def insert_tenant(connection: Connection, owner_id: str) -> str:
+    tenant_id = str(uuid4())
+    connection.execute(
+        text(
+            "INSERT INTO tenants (uuid,name,slug,status,time_zone,country_code,currency_code,owner_id,is_deleted) "
+            "VALUES (:id,'[[ project_name ]]','[[ project_slug ]]','ACTIVE','UTC','GT','GTQ',:owner,false)"
+        ),
+        {"id": tenant_id, "owner": owner_id},
+    )
+    return tenant_id
+
+
+@pytest.mark.db
+def test_upgrade_preserves_data_uniqueness_and_owner_delete(migrated_connection):
+    connection, config = migrated_connection
+    owner_id = str(uuid4())
+    connection.execute(
+        text("INSERT INTO users (uuid,username,is_active,is_superuser) VALUES (:id,'owner',true,false)"),
+        {"id": owner_id},
+    )
+    email_id = str(uuid4())
+    connection.execute(
+        text("INSERT INTO email_addresses (uuid,email,is_verified) VALUES (:id,'[[ owner_email ]]',true)"),
+        {"id": email_id},
+    )
+    tenant_id = insert_tenant(connection, owner_id)
+    connection.commit()
+    command.upgrade(config, "head")
+    command.check(config)
+    expect(str(connection.scalar(text("SELECT owner_id FROM tenants WHERE uuid=:id"), {"id": tenant_id}))).to(
+        equal(owner_id)
+    )
+    expect(connection.scalar(text("SELECT email FROM email_addresses WHERE uuid=:id"), {"id": email_id})).to(
+        equal("[[ owner_email ]]")
+    )
+    connection.commit()
+
+    def execute_in_savepoint(statement: str, parameters: dict[str, str]) -> None:
+        with connection.begin_nested():
+            connection.execute(text(statement), parameters)
+
+    for sql, params in [
+        (
+            "INSERT INTO users (uuid,username,is_active,is_superuser) VALUES (:id,'owner',true,false)",
+            {"id": str(uuid4())},
+        ),
+        (
+            "INSERT INTO email_addresses (uuid,email,is_verified) VALUES (:id,'[[ owner_email ]]',false)",
+            {"id": str(uuid4())},
+        ),
+        (
+            (
+                "INSERT INTO tenants (uuid,name,slug,status,time_zone,country_code,currency_code,is_deleted) "
+                "VALUES (:id,'[[ project_name ]]','[[ project_slug ]]','ACTIVE','UTC','GT','GTQ',false)"
+            ),
+            {"id": str(uuid4())},
+        ),
+        ("UPDATE tenants SET owner_id=:id", {"id": str(uuid4())}),
+    ]:
+        expect(lambda statement=sql, parameters=params: execute_in_savepoint(statement, parameters)).to(
+            raise_error(IntegrityError)
+        )
+    connection.execute(text("DELETE FROM users WHERE uuid=:id"), {"id": owner_id})
+    expect(connection.scalar(text("SELECT owner_id FROM tenants WHERE uuid=:id"), {"id": tenant_id})).to(be_none)
+    expect(connection.scalar(text("SELECT name FROM tenants WHERE uuid=:id"), {"id": tenant_id})).to(
+        equal("[[ project_name ]]")
+    )
+
+
+@pytest.mark.db
+def test_orphan_owner_fails_without_rewriting_data(migrated_connection):
+    connection, config = migrated_connection
+    owner_id = str(uuid4())
+    tenant_id = insert_tenant(connection, owner_id)
+    connection.commit()
+    expect(lambda: command.upgrade(config, "head")).to(raise_error(RuntimeError, contain("orphan owner")))
+    expect(str(connection.scalar(text("SELECT owner_id FROM tenants WHERE uuid=:id"), {"id": tenant_id}))).to(
+        equal(owner_id)
+    )
+    expect(connection.scalar(text("SELECT version_num FROM alembic_version"))).to(equal("20260707_000001"))
+
+
+@pytest.mark.db
+def test_schema_drift_is_detected(migrated_connection):
+    connection, config = migrated_connection
+    command.upgrade(config, "head")
+    connection.execute(text("ALTER TABLE tenants ADD COLUMN unintended_column text"))
+    connection.commit()
+    from alembic.util.exc import AutogenerateDiffsDetected
+
+    expect(lambda: command.check(config)).to(raise_error(AutogenerateDiffsDetected))

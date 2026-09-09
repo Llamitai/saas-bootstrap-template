@@ -1,29 +1,27 @@
 ---
 name: python-testing
 description: >
-  Generate tests for the SaaS Bootstrap backend (FastAPI + async SQLAlchemy) following project conventions.
-  Use when the user asks to "write tests", "add tests", "test this", "make test", "create test for",
-  "increase coverage", or references a source file that needs testing. Handles all 4 architectural
-  layers: domain (pure unit tests), application/use cases (mocked repos), infrastructure/repositories
-  (async DB integration tests), and presentation/API (E2E HTTP integration tests).
-  Always uses expects library, standalone functions, AAA pattern, and pytest fixtures.
+  Apply backend pytest conventions when writing or refining Python tests: expects assertions,
+  async fixtures, autospecced repository ports and layer-specific examples. Use verify-change
+  to choose checks, diagnose failures or assess coverage; TypeScript tests use their own guidance.
 ---
 
 # Python Testing — SaaS Bootstrap Backend
 
-Generate tests for SaaS Bootstrap backend source files following project conventions.
+Use this reference for test syntax, fixtures and placement after the behavior to
+verify is identified. [verify-change](../verify-change/SKILL.md) owns test selection,
+diagnosis, coverage scope and evidence; [TDD](../tdd/SKILL.md) describes the incremental
+red/green method. Consulting these conventions does not start another workflow.
 
-## Workflow
+## Applying the conventions
 
 1. Read the source file to test
 2. Determine the **architectural layer** (domain, application, infrastructure, presentation)
 3. Read existing fixtures in `tests/conftest.py` and relevant module `conftest.py` files
 4. Read the **layer-specific patterns** from [references/patterns.md](references/patterns.md)
-5. Generate the test file at the correct path
-6. Run `just backend test unit <test_file_path>` to verify (DB-backed fixtures
-   need the docker compose network; host-run `uv run pytest` only works with the
-   stack up plus `POSTGRES_HOST=localhost POSTGRES_PORT=5434` overrides)
-7. Run `cd backend && uv run ruff format <test_file_path>` to auto-format
+5. Write the test at the matching path for the selected behavior. Follow the
+   project's verification guide for commands, markers and services; API tests
+   require the API selector. Tests are not selected by source layer alone.
 
 ## Path Convention
 
@@ -34,7 +32,7 @@ Ensure `__init__.py` exists in every directory of the test path.
 
 ## Core Rules
 
-- **`expects`** for all assertions — never bare `assert`
+- **`expects`** for all assertions — never bare `assert`. Async exception assertions must await the call and check the captured exception with expects; see the error-path examples in [patterns.md](references/patterns.md).
 - **Standalone functions** — never classes with `@staticmethod`
 - **AAA pattern** — blank line before Assert block
 - **async by default** — use `async def test_...` for any test involving async code. `asyncio_mode = "auto"` is configured, so no `@pytest.mark.asyncio` decorator needed
@@ -53,7 +51,7 @@ Ensure `__init__.py` exists in every directory of the test path.
 ### Global (`tests/conftest.py`)
 - `tenant_id`: random UUID
 - `tenant`: `Tenant` domain entity (ACTIVE status)
-- `setup_database` (session-scoped, autouse): creates all tables via async SQLAlchemy, disposes on teardown
+- `setup_database` (session-scoped, requested by DB fixtures): creates all tables via async SQLAlchemy, disposes on teardown
 - `async_session`: function-scoped `AsyncSession` for DB operations
 
 ### E2E API (`tests/api/conftest.py`)

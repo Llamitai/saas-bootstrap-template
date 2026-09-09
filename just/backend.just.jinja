@@ -65,37 +65,9 @@ up-prod:
 # `api` and `all` bring the stack up, wait for :8200, run, then tear it down.
 #   just backend test                 # unit (excludes api)
 #   just backend test unit tests/tenants
-test marker="unit" *args="": _ensure-env
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{marker}}" in
-      unit)   docker compose run --rm api bash -c "pytest --pyargs -m 'not api' {{args}}" ;;
-      single) docker compose run --rm api bash -c "pytest --pyargs -m single {{args}}" ;;
-      api|all)
-          cleanup_api_stack() {
-              docker compose down
-          }
-          trap cleanup_api_stack EXIT
-          docker compose up -d
-          echo "🗃️ Applying database migrations..."
-          docker compose run --rm api alembic upgrade head
-          echo "⏳ Waiting for API on :8200..."
-          for attempt in $(seq 1 120); do
-              if curl -sf http://localhost:8200 >/dev/null 2>&1; then break; fi
-              if [ "${attempt}" -eq 120 ]; then
-                  echo "❌ API did not become ready on :8200 after 120s" >&2
-                  exit 1
-              fi
-              sleep 1
-          done
-          echo "✅ API ready"
-          if [ "{{marker}}" = "api" ]; then
-              docker compose run --rm api bash -c "pytest -m api --pyargs {{args}}"
-          else
-              docker compose run --rm api bash -c "pytest --pyargs {{args}}"
-          fi ;;
-      *) echo "Unknown marker '{{marker}}'. Use: unit | single | api | all" >&2; exit 1 ;;
-    esac
+[positional-arguments]
+test marker="unit" *args:
+    python3 ../scripts/test_stack.py "$@"
 
 # ─── CODE QUALITY ───────────────────────────────────────────────
 
@@ -121,6 +93,18 @@ lint-imports: _ensure-env
 
 # Run format + lint + typecheck + architecture boundaries
 code_quality: format lint typecheck lint-imports
+
+# Compatibility alias: explicitly modifies files
+quality: code_quality
+
+# Static gate without starting dependent services or autofix
+check: _ensure-env
+    docker compose run --rm --no-deps --entrypoint "" api uv run --locked python scripts/check.py
+
+# Upgrade disposable databases from base and previous revision; detect drift
+[positional-arguments]
+check-migrations *args:
+    python3 ../scripts/test_stack.py migrations "$@"
 
 # ─── DATABASE / MIGRATIONS ──────────────────────────────────────
 

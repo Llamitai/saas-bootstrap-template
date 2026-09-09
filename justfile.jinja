@@ -34,17 +34,38 @@ build-all:
     just frontend build
     just docs build
 
-# Run the full cross-stack quality gate (backend quality + tests, frontend verify)
+# Static checks, backend non-API tests and frontend verify (see verification.md)
 verify:
-    just backend quality
+    just agent-check
+    just backend check
     just backend test
     just frontend verify
 
+# Static checks only; never repairs skill drift or reformats sources
+check:
+    just agent-check
+    just backend check
+    just frontend check
+
+# Validate agent metadata/links/config and required skill copies
+agent-check:
+    python3 scripts/check_agent_config.py
+    python3 scripts/sync_skills.py --check
+
+# OpenSpec structural status (not product acceptance)
+change-status change:
+    node scripts/openspec.mjs status {{quote(change)}}
+
+# Strict OpenSpec structure; kind is change or spec
+spec-check item kind="change":
+    node scripts/openspec.mjs check {{quote(item)}} {{quote(kind)}}
+
 # ─── AGENT SKILLS ───────────────────────────────────────────────
 
-# Sync canonical .claude/skills into .codex/skills and .opencode/skills
+# Sync canonical skills to the declared Codex/OpenCode/.agents subsets
+[positional-arguments]
 sync-skills *args:
-    python3 scripts/sync_skills.py {{args}}
+    python3 scripts/sync_skills.py "$@"
 
 # ─── DOCKER (cross-cutting) ─────────────────────────────────────
 
@@ -60,3 +81,8 @@ clean:
 # Show running containers (name / ports / status)
 ps:
     docker ps --format "table {{{{.Names}}}}\t{{{{.Ports}}}}\t{{{{.Status}}}}"
+
+# Real browser -> BFF -> API journey using an exclusive test stack
+[positional-arguments]
+integration *args:
+    python3 scripts/test_stack.py integration "$@"
