@@ -1,5 +1,14 @@
 # GitHub Container Registry and Actions reference
 
+Contents: [Action versions](#action-versions) · [Build and push](#build-and-push) ·
+[Provenance and SBOM](#provenance-and-sbom) ·
+[Manual first push](#manual-first-push) ·
+[Package visibility](#package-visibility--the-most-common-first-deploy-failure) ·
+[Private pulls](#pulling-a-private-image-on-the-docker-host) ·
+[Cloudflare Access](#cloudflare-access) ·
+[Repository CLI](#configuring-the-repository-from-the-cli) ·
+[Inspecting packages](#inspecting-packages)
+
 ## Action versions
 
 Current majors (verified against each action's `action.yml`):
@@ -14,6 +23,19 @@ Current majors (verified against each action's `action.yml`):
 
 These majors are Node 24 runtime bumps and require Actions Runner ≥ 2.327.1.
 No input was renamed. This repo's workflows already use them.
+
+**Pin third-party actions by full commit SHA** (40 hex characters) with the
+version as a trailing comment; a tag such as `@v2` can be moved to different
+code. Resolve a SHA read-only instead of copying one from memory:
+
+```bash
+gh api repos/<owner>/<action>/git/ref/tags/<tag> --jq '.object.type + " " + .object.sha'
+# if the type is "tag" (annotated), dereference it to the commit:
+gh api repos/<owner>/<action>/git/tags/<sha> --jq .object.sha
+```
+
+The workflows in this repo pin every action by SHA, and the `Workflow lint` job
+(actionlint + zizmor) rejects unpinned additions.
 
 ## Build and push
 
@@ -71,6 +93,75 @@ steps:
 - Pre-release semver tags do not produce moving tags: with
   `type=semver,pattern={{major}}`, `v2.0.8-beta.67` emits `2.0.8-beta.67`, not
   `2`. Deliberate.
+
+## Provenance and SBOM
+
+The repo's build workflows already set `provenance: mode=max` and `sbom: true`;
+the Sigstore attestation below is optional further hardening. BuildKit attaches an SLSA provenance and SBOM attestation to the pushed
+image, and `actions/attest-build-provenance` adds a Sigstore-signed GitHub
+attestation that `gh attestation verify` can check on the pull side. SHAs
+below were resolved with the commands above on 2026-09-26 (`v7.4.0`,
+`v4.2.2`); re-resolve before adopting them.
+
+```yaml
+permissions:
+  contents: read
+  packages: write           # push image + attestation to GHCR
+  id-token: write           # OIDC token for the Sigstore signing certificate
+  attestations: write       # persist the attestation
+  artifact-metadata: write  # storage record (created when push-to-registry is true)
+
+steps:
+  # … checkout, setup-buildx, login, metadata as above
+  - id: push
+    uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+    with:
+      context: backend
+      file: backend/Dockerfile
+      target: production
+      push: true
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
+      provenance: mode=max    # full SLSA provenance, including build args
+      sbom: true
+
+  - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+    with:
+      subject-name: ${{ vars.BACKEND_REPOSITORY_URI }}   # fully qualified, no tag
+      subject-digest: ${{ steps.push.outputs.digest }}
+      push-to-registry: true
+```
+
+- Grant these permissions on the build job only, never workflow-wide; the
+  rollback jobs need just `contents: read` and `packages: read`.
+- `mode=max` records build arguments in the provenance: never pass secrets as
+  `build-args` (use BuildKit secrets).
+- Verify: `gh attestation verify oci://<image>:<tag> --owner <owner>`.
+- Artifact attestations on **private** repositories depend on the GitHub plan;
+  confirm availability before relying on them.
+
+## Manual first push
+
+Only when the first image must exist before CI runs (SKILL.md Phase 4 Path B).
+Needs a classic PAT with `write:packages` (see § Pulling a private image on the Docker host for why
+fine-grained tokens fail) and `docker` with Buildx:
+
+```bash
+echo "$CR_PAT" | docker login ghcr.io -u USERNAME --password-stdin
+TAG="sha-$(git rev-parse --short HEAD)"
+docker buildx build backend \
+  --file backend/Dockerfile --target production \
+  --platform linux/amd64 \
+  --label "org.opencontainers.image.source=https://github.com/OWNER/REPO" \
+  --tag "ghcr.io/OWNER/PROJECT-api-prod:$TAG" \
+  --tag "ghcr.io/OWNER/PROJECT-api-prod:latest" \
+  --push
+```
+
+Match `--platform` to the Docker host, use the exact lowercase image name from
+`backend/docker-compose.prod.yml`, and keep the `source` label so the package
+links to the repository on its first push (below). Repeat for the frontend
+with `frontend/Dockerfile` and the `-web-prod` image.
 
 ## Package visibility — the most common first-deploy failure
 
@@ -161,7 +252,7 @@ body** — so the failure looks like a malformed Portainer response, not a 401.
 
 > Storing `CF_ACCESS_*` secrets without adding this `headers:` input does
 > nothing. Check whether the workflows actually reference them:
-> `bash scripts/github_setup.sh --audit` reports configured-but-unreferenced
+> `bash <skill-dir>/scripts/github_setup.sh --env-file .env.deploy.ci --environment Production --audit` reports configured-but-unreferenced
 > names.
 
 ## Configuring the repository from the CLI

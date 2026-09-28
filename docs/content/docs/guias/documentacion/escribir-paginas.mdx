@@ -1,0 +1,48 @@
+---
+title: Escribir páginas
+description: Dónde va cada página, qué formato usa y cómo se registra en la navegación.
+icon: PenLine
+---
+
+<Callout title="En resumen">
+  Todo el contenido vive en `docs/content/docs/`, en español. Cada página cubre una sola necesidad (aprender, hacer, consultar o entender) y se registra en el `meta.json` de su carpeta.
+</Callout>
+
+## Elegir la sección
+
+La organización sigue [Diátaxis](https://diataxis.fr/): cada tipo de página responde a una necesidad distinta.
+
+| Pestaña | Carpeta | Tipo | Pregunta que responde |
+| --- | --- | --- | --- |
+| Empezar | `(empezar)/` | Tutorial | ¿Cómo arranco? |
+| Guías | `guias/` | Guía práctica | ¿Cómo hago esta tarea? |
+| Conceptos | `conceptos/` | Explicación | ¿Por qué funciona así? |
+| Referencia | `referencia/` | Referencia | ¿Cuál es el dato exacto? |
+| Equipo | `equipo/` | Contrato interno | ¿Qué reglas sigue el repositorio? |
+
+`(empezar)` es un grupo: sus páginas se publican en la raíz (`/docs/instalacion`). Los ADRs van siempre en `equipo/adr/` con su propio formato.
+
+## Formato
+
+- Archivos `.mdx` para páginas con componentes y `.md` para texto plano (los contratos de `equipo/` y los ADRs). Nombres en kebab-case ASCII.
+- Frontmatter con `title` y `description`; `icon` es opcional y admite cualquier nombre de [Lucide](https://lucide.dev/icons). No repitas el título con un `#` en el cuerpo.
+- Las páginas `.mdx` abren con `<Callout title="En resumen">`.
+- Enlaza con rutas relativas al archivo (`../equipo/verificacion.md`): funcionan al leer el repositorio y el sitio las convierte en URLs. Un enlace a código fuera de `docs/content/docs/` apunta al repositorio remoto si existe `origin`; si no, se muestra como texto.
+- En MDX, `<` y `{` sueltos rompen la compilación: van entre backticks.
+
+## Componentes
+
+`Callout`, `Cards`/`Card`, `Steps`/`Step`, `Tabs`/`Tab`, `Accordions`/`Accordion`, `TypeTable` y bloques ` ```mermaid ` están disponibles sin importarlos. Los iconos de `Card` se importan de `lucide-react` al inicio de la página.
+
+## Registrar la página
+
+Añade el slug al array `pages` del `meta.json` de su carpeta; el orden del array es el orden de la barra lateral. Una carpeta nueva necesita su propio `meta.json` y una entrada en el del padre. Los separadores se escriben `"---Título---"` y `"...carpeta"` inserta el contenido de una subcarpeta.
+
+## Comprobar
+
+```bash
+just docs build       # compila todo el contenido y prerenderiza cada ruta
+just agent-check      # enlaces relativos y frontmatter de todas las páginas
+```
+
+El skill [add-docs](../../../../../.claude/skills/add-docs/SKILL.md) aplica estas reglas y añade recetas de diagramas.

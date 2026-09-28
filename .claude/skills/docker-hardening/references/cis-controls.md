@@ -2,6 +2,31 @@
 
 Twelve controls audited by this skill. Source: CIS Docker Benchmark Level 1 (and the internal hardening checklist that derives from it). Stack-agnostic.
 
+Numbering follows [docker-bench-security](https://github.com/docker/docker-bench-security),
+which implements CIS Docker Benchmark v1.6.0. CIS has published newer
+revisions (v1.8.0); when the organization audits against a newer PDF, map the
+control titles, not only the section numbers. Where this skill is stricter than
+the benchmark text (for example, digest pinning under 5.28), it says so as a
+project extension.
+
+Contents:
+
+- [Chapter 4 — images and build files](#chapter-4--container-images-and-build-file-configuration):
+  [4.1](#41--ensure-a-non-root-user-is-created-for-the-container) ·
+  [4.2](#42--ensure-containers-use-only-trusted-base-images) ·
+  [4.3](#43--ensure-unnecessary-packages-are-not-installed-in-the-container) ·
+  [4.4](#44--ensure-images-are-scanned-and-rebuilt-to-include-security-patches) ·
+  [4.6](#46--ensure-healthcheck-instructions-have-been-added) ·
+  [4.7](#47--ensure-update-instructions-are-not-used-alone-in-dockerfiles) ·
+  [4.9](#49--use-copy-instead-of-add-in-dockerfiles) ·
+  [4.10](#410--ensure-secrets-are-not-stored-in-dockerfiles) ·
+  [4.11](#411--ensure-only-verified-packages-are-installed)
+- [Chapter 5 — container runtime](#chapter-5--container-runtime-configuration):
+  [5.7](#57--ensure-sshd-is-not-running-inside-containers) ·
+  [5.9](#59--ensure-only-necessary-ports-are-open-on-the-container) ·
+  [5.28](#528--ensure-docker-commands-always-use-the-latest-version-of-the-image)
+- [Auditor notes](#auditor-notes)
+
 ---
 
 ## Chapter 4 — Container images and build-file configuration
@@ -41,7 +66,7 @@ docker history <image-name>
 ```
 Review provenance and contents per your security policy.
 
-**Remediation.** Configure Docker Content Trust, review `docker history` before deploys, scan images regularly, and pin by digest (see 5.28).
+**Remediation.** Verify base-image signatures or attestations (cosign, Notation or `gh attestation verify`), review `docker history` before deploys, scan images regularly, and pin by digest (see 5.28). Do not rely on Docker Content Trust: DCT/Notary v1 is retired and `notary.docker.io` shuts down on December 8, 2026 ([notice](https://docs.docker.com/retired/#docker-content-trust-dct)); flag existing `DOCKER_CONTENT_TRUST=1` / `docker trust` usage for migration.
 
 ---
 
@@ -69,7 +94,7 @@ docker exec $INSTANCE_ID rpm -qa     # or: apt list --installed / apk info / dnf
 
 **Audit.** Run a vulnerability scanner (Docker Scout, Trivy, Grype, Snyk) against every image in the registry. Verify package versions inside running containers.
 
-**Remediation.** Rebuild periodically using the latest base image and restart containers from the new images. Integrate scanning into CI with `--exit-code 1` so HIGH/CRITICAL findings block the pipeline.
+**Remediation.** Rebuild periodically using the latest base image and restart containers from the new images. Integrate scanning into CI with a failing exit status (`trivy image --exit-code 1`, `docker scout cves --exit-code`, `grype --fail-on high`) so HIGH/CRITICAL findings block the pipeline; pin the scanner action by commit SHA and the scanner image by digest.
 
 ---
 
@@ -201,7 +226,7 @@ docker ps --quiet | xargs docker inspect --format '{{ .Id }}: Ports={{ .NetworkS
 
 **Audit.** Compare local tag vs registry. `docker pull` should fetch a new digest when one exists.
 
-**Remediation.** Pin images by **digest** (`image@sha256:…`) — `latest` is still vulnerable to cache poisoning. Apply to base images, package sources, and deployed image references. Automate digest bumps via Renovate / Dependabot.
+**Remediation.** The benchmark asks for proper version pinning because the default `latest` tag is still vulnerable to caching attacks, applied to base images, packages and entire images. **Project extension:** this skill requires pinning by **digest** (`image:tag@sha256:…`) for base images and deployed image references, with digest bumps automated via Renovate / Dependabot.
 
 ---
 

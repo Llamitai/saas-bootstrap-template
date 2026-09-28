@@ -50,7 +50,7 @@ Every generated project ships a `justfile`; run these from the project root:
 | `just frontend test` / `just frontend e2e` | Frontend unit tests / Playwright end-to-end suite |
 | `just frontend lint` / `just frontend typecheck` | Frontend lint / type checking |
 | `just verify` | Full verification pass across the whole project |
-| `just stop-all` | Stop every running service |
+| `just stop-all` | Stop the backend stack |
 
 `just backend`, `just frontend`, and `just docs` list every recipe available
 in each module.

@@ -1,0 +1,77 @@
+---
+title: Instalación local
+description: Requisitos, arranque del stack y primer login con los datos de ejemplo.
+icon: Download
+---
+
+<Callout title="En resumen">
+  El backend corre entero en Docker; el frontend y este sitio usan Node 24 y pnpm. Con `just` se arranca cada parte desde la raíz del repositorio.
+</Callout>
+
+## Requisitos
+
+- **Docker** con el plugin Compose: el backend y sus servicios corren en contenedores.
+- **[just](https://github.com/casey/just)**: ejecuta todas las tareas de desarrollo.
+- **Node.js 24** (la versión mayor está fijada en `.nvmrc`).
+- **pnpm 11**: `corepack enable` activa la versión fijada en `packageManager`.
+- Opcional: **uv** para ejecutar el backend fuera de Docker y **lefthook** para los hooks locales (`lefthook install`).
+
+## Arranque
+
+<Steps>
+  <Step>
+    ### Backend
+
+    ```bash
+    just backend dev
+    ```
+
+    Crea `backend/.env` desde `.env.example` si no existe y levanta la API en `:8200` y el worker con PostgreSQL, Valkey, RabbitMQ (consola en `:15672`), RustFS (S3), Mailpit y Directus.
+  </Step>
+  <Step>
+    ### Base de datos y datos de ejemplo
+
+    En otra terminal, en este orden:
+
+    ```bash
+    just backend migrate
+    just backend seed
+    just backend minio-setup
+    ```
+  </Step>
+  <Step>
+    ### Frontend
+
+    ```bash
+    cp frontend/.env.example frontend/.env
+    just frontend install
+    just frontend dev
+    ```
+
+    La app queda en `http://localhost:3000`.
+  </Step>
+  <Step>
+    ### Primer login
+
+    Entra con el owner sembrado: `[[ owner_email ]]` / `12345678x`.
+  </Step>
+</Steps>
+
+## Servicios locales
+
+| Servicio | URL |
+| --- | --- |
+| API y OpenAPI interactivo | `http://localhost:8200/api/py/docs` |
+| App web | `http://localhost:3000` |
+| Documentación | `http://localhost:4321` (`just docs dev`) |
+| Directus | `http://localhost:8055` |
+| Consola de RustFS | `http://localhost:9001` |
+| Mailpit (correos capturados) | `http://localhost:8027` |
+
+Los puertos publicados están en `backend/docker-compose.yml`; todos escuchan solo en `127.0.0.1`.
+
+## Siguientes pasos
+
+- [Estructura del repositorio](estructura.mdx) para ubicar cada pieza.
+- [Verificación y aceptación](../equipo/verificacion.md) antes de tu primer cambio.
+- `just backend stop` detiene los contenedores del backend cuando termines.

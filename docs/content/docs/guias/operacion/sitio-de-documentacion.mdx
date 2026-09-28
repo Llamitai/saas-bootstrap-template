@@ -1,0 +1,56 @@
+---
+title: Sitio de documentación
+description: Desarrollo, build estático, despliegue y rutas para agentes del sitio de documentación.
+icon: Globe
+---
+
+<Callout title="En resumen">
+  El sitio es una app React Router + Fumadocs en `docs/` que se prerenderiza entera: HTML, índice de búsqueda y rutas para LLMs se generan en el build y se sirven como archivos estáticos.
+</Callout>
+
+## Desarrollo
+
+```bash
+just docs install    # dependencias (pnpm)
+just docs dev        # http://localhost:4321
+just docs typecheck  # typegen de React Router + tsc
+```
+
+## Cómo se construye
+
+```mermaid
+flowchart LR
+  md[content/docs: .md y .mdx] --> mdx[fumadocs-mdx]
+  api[openapi/openapi.json] --> oa[fumadocs-openapi]
+  mdx --> source[loader de Fumadocs]
+  oa --> source
+  source --> build[react-router build]
+  build --> html[HTML prerenderizado]
+  build --> search[/api/search estático]
+  build --> llms[llms.txt y Markdown por página]
+```
+
+`react-router.config.ts` recorre el contenido y las operaciones OpenAPI para prerenderizar cada ruta, así que `just docs build` falla ante cualquier página rota.
+
+## Build y despliegue
+
+```bash
+just docs build      # salida en docs/build/client
+just docs preview    # sirve el build localmente
+```
+
+`docs/build/client` es un sitio estático: cualquier hosting de archivos sirve. El sitio no tiene autenticación; si su contenido debe ser privado, protégelo en el hosting (proxy con autenticación o acceso restringido), no en el cliente.
+
+## Rutas para agentes
+
+| Ruta | Contenido |
+| --- | --- |
+| `/llms.txt` | Índice de páginas |
+| `/llms-full.txt` | Todo el contenido en un solo archivo |
+| `/llms.mdx/docs/<ruta>/content.md` | Una página en Markdown |
+
+Cada página ofrece también "Copiar Markdown" y abrir en ChatGPT, Claude o Cursor.
+
+## Enlaces al repositorio
+
+Los enlaces a código y la acción "Ver el código fuente" usan la URL del remoto `origin` del checkout que hace el build. Sin remoto, esos enlaces se muestran como texto.

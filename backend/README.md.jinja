@@ -5,16 +5,16 @@ perfil, tenants, invitaciones, roles/permisos, correo, assets y superuser.
 Puerto `8200`.
 
 ## Stack
-Python 3.14 · FastAPI · SQLAlchemy 2 async (asyncpg) · Alembic · Redis + SAQ (jobs) ·
-Postgres · MinIO/S3 para assets.
+Python 3.14 · FastAPI · SQLAlchemy 2 async (asyncpg) · Alembic · Valkey (caché) · RabbitMQ (comandos diferidos) ·
+Postgres · S3 para assets (RustFS en local).
 Lint/format con `ruff`, tipos con `ty`.
 
 ## Comandos (`just backend <cmd>`)
 ```bash
-just backend dev               # stack local (API + Postgres + Redis + Directus)
+just backend dev               # stack local (API + worker + Postgres + Valkey + RabbitMQ + Directus + RustFS + Mailpit)
 just backend bash              # shell en el contenedor api
 just backend test [marker]     # marker: unit (def) | single | api | all
-just backend quality           # format + lint + typecheck
+just backend quality           # format + lint + typecheck + import-linter (modifica archivos)
 just backend migrate                 # alembic upgrade head
 just backend new-migration "msg"     # nueva migración autogenerada
 just backend seed                    # tenants/usuarios/roles base
@@ -23,11 +23,13 @@ just backend seed                    # tenants/usuarios/roles base
 Usuarios sembrados: contraseña `12345678x`, login `[[ owner_email ]]`.
 
 ## Arquitectura
-Clean Architecture + DDD. Cada módulo en `src/<mod>/` se divide en
-`domain/ → application/ → infrastructure/ → presentation/`.
+Clean Architecture + DDD con dependencias hacia dentro; cada módulo usa solo las
+capas que necesita. Capas, formas de módulo y ubicación de artefactos (incluidos
+ORM y dominio compartido) están en
+[layers.md](../.claude/skills/backend-architecture/references/layers.md).
 
 Módulos: `auth`, `users`, `profile`, `tenants`, `messaging`, `assets`, `admin`
-y `common` (infra compartida: database/models, settings, middlewares).
+y `common` (shared kernel).
 
 ## Entry points
 - API: `config/main.py` (`app`) · CLI fixtures: `command.py`
@@ -35,15 +37,18 @@ y `common` (infra compartida: database/models, settings, middlewares).
 - Config local: copia `.env.example` → `.env`
 
 ## Docs profundas
-En [`../docs/internal/`](../docs/internal): `backend/api-reference.md`,
-`architecture/erd-diagram.md`, `backend/debugging.md`, `adr/`.
+En el sitio de documentación (`docs/content/docs/`):
+[arquitectura backend](../docs/content/docs/conceptos/arquitectura-backend.mdx),
+[modelo de datos](../docs/content/docs/conceptos/modelo-de-datos.md),
+[depuración](../docs/content/docs/guias/backend/depuracion.md) y
+[ADRs](../docs/content/docs/equipo/adr/index.md). La referencia de endpoints se
+genera desde OpenAPI: tras cambiar el contrato HTTP, `just backend openapi`.
 
 ## Flujo de cambios y comprobaciones
 
-El [perfil](../docs/internal/project-profile.md) mantiene capacidades y contratos;
-la [guía de verificación](../docs/internal/verification.md) explica requisitos,
+El [perfil](../docs/content/docs/equipo/perfil-del-proyecto.md) mantiene capacidades y contratos;
+la [guía de verificación](../docs/content/docs/equipo/verificacion.md) explica requisitos,
 aislamiento y selección. `just backend quality` corrige archivos; `just backend
 check` comprueba sin autofix. `just backend test` usa servicios/DB exclusivos.
 Cambios funcionales usan una change OpenSpec y criterios observables; checks
-verdes no sustituyen la validación. ORM y dominio compartido permanecen en
-`src/common/database/models` y `src/common/domain/models` respectivamente.
+verdes no sustituyen la validación.

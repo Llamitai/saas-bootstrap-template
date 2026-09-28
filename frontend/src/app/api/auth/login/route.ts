@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { loginBackend } from "@/features/auth/server";
+import { backendHeadersFrom } from "@/shared/http/bff";
 import { genericServerError, invalidCredentials } from "@/shared/http/errors";
 import { setSessionCookies } from "@/shared/http/session-cookies";
 
@@ -12,7 +13,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(invalidCredentials, { status: 400 });
     }
 
-    const result = await loginBackend(email, password);
+    const result = await loginBackend(
+      email,
+      password,
+      backendHeadersFrom(request)
+    );
     if (!result.ok) {
       return NextResponse.json(result.body, { status: result.status });
     }
@@ -24,7 +29,7 @@ export async function POST(request: NextRequest) {
         tenant,
         tenantRole,
       },
-      datetime: result.body.datetime,
+      timestamp: result.body.timestamp,
     });
 
     return setSessionCookies(response, session);

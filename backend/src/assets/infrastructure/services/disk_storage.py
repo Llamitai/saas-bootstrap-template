@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 
@@ -13,7 +14,17 @@ class DiskStorageService(StorageService):
         # Ensure the base directory exists
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
+    # Blocking I/O runs in a worker thread; the private methods hold the sync logic.
+    async def upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
+        return await asyncio.to_thread(self._upload_file, input_file)
+
+    async def get_file(self, file_path: str) -> InMemoryFile:
+        return await asyncio.to_thread(self._get_file, file_path)
+
+    async def delete_file(self, file_path: str) -> None:
+        await asyncio.to_thread(self._delete_file, file_path)
+
+    def _upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
         if not input_file.is_procesable:
             error_msg = "Input file must have both file_path and file_bytes"
             raise ValueError(error_msg)
@@ -56,7 +67,7 @@ class DiskStorageService(StorageService):
             error_msg = f"Failed to write file to disk: {e!s}"
             raise OSError(error_msg) from e
 
-    def get_file(self, file_path: str) -> InMemoryFile:
+    def _get_file(self, file_path: str) -> InMemoryFile:
         # Parse the file path
         if file_path.startswith("file://"):
             # Remove file:// prefix
@@ -103,7 +114,7 @@ class DiskStorageService(StorageService):
             error_msg = f"Failed to read file from disk: {e!s}"
             raise OSError(error_msg) from e
 
-    def delete_file(self, file_path: str) -> None:
+    def _delete_file(self, file_path: str) -> None:
         if file_path.startswith("file://"):
             actual_path = Path(file_path[7:])
         elif os.path.isabs(file_path):

@@ -7,7 +7,6 @@ from src.common.domain.contexts.domain import DomainContext
 from src.common.infrastructure.services.jwt_token_builder import JwtTokenBuilder
 from src.common.infrastructure.services.jwt_token_service import JwtTokenService
 from src.common.infrastructure.services.redis_token_store import RedisTokenStore
-from src.common.settings import settings
 from src.tenants.infrastructure.repositories.sql_tenant import SQLTenantRepository
 from src.tenants.infrastructure.repositories.sql_tenant_role import SQLTenantRoleRepository
 from src.tenants.infrastructure.repositories.sql_tenant_user import SQLTenantUserRepository
@@ -19,7 +18,8 @@ from src.users.infrastructure.repositories.sql_phone_number import SQLPhoneNumbe
 from src.users.infrastructure.repositories.sql_user import SQLUserRepository
 
 
-def build_async_domain(session: AsyncSession) -> DomainContext:
+def build_async_domain(session: AsyncSession, redis_client: Redis) -> DomainContext:
+    """Build request/job-scoped adapters; `redis_client` is the process-wide client owned by the lifespan."""
     tenant_user_repository = SQLTenantUserRepository(session=session)
     return DomainContext(
         # -> ADMIN
@@ -39,7 +39,7 @@ def build_async_domain(session: AsyncSession) -> DomainContext:
         # -> COMMON
         token_service=JwtTokenService(
             token_builder=JwtTokenBuilder(),
-            token_store=RedisTokenStore(redis_client=Redis.from_url(settings.redis_url)),
+            token_store=RedisTokenStore(redis_client=redis_client),
         ),
         # -> ASSETS
         storage_service=S3StorageService(),

@@ -1,54 +1,51 @@
 # [[ project_name ]] Docs
 
-App de documentación técnica aislada de la app principal.
+Sitio de documentación técnica, aislado de la app principal. Se prerenderiza
+entero y se sirve como archivos estáticos.
 
 ## Stack
 
-- React + TypeScript
-- React Router Framework Mode
-- Vite
-- Tailwind CSS v4
-- Fumadocs Core/UI/MDX
-- Orama para búsqueda estática
-- Mermaid para diagramas
+- React Router (framework mode) sobre Vite y Tailwind CSS v4.
+- Fumadocs: `fumadocs-mdx` para el contenido, `fumadocs-ui` con el layout
+  Notebook y `fumadocs-openapi` para la referencia de la API.
+- ZBSearch para la búsqueda estática y Mermaid para diagramas.
 
 ## Comandos
 
 ```bash
-pnpm --prefix docs dev
-pnpm --prefix docs types:check
-pnpm --prefix docs build
-pnpm --prefix docs start
+just docs dev        # http://localhost:4321
+just docs typecheck  # typegen de React Router + tsc
+just docs build      # prerender de todas las rutas en build/client
+just docs preview    # sirve el build
 ```
 
-Desde la raíz también existen:
+## Estructura
 
-```bash
-pnpm docs
-pnpm docs:build
+```text
+content/docs/        Contenido (.md y .mdx) organizado por pestañas
+  (empezar)/         Tutoriales; el grupo no añade segmento a la URL
+  guias/             Guías prácticas por área
+  conceptos/         Explicación: arquitectura, dominio, datos
+  referencia/        Comandos y contratos; api/ se genera desde OpenAPI
+  equipo/            Contrato del repositorio y ADRs (lo leen los agentes)
+openapi/openapi.json Snapshot del esquema FastAPI (`just backend openapi`)
+lib/                 Código de Node: OpenAPI y reescritura de enlaces
+app/                 Rutas, layout, búsqueda y rutas para LLMs
 ```
 
-## Contenido
+Las convenciones para escribir páginas están en
+[Escribir páginas](content/docs/guias/documentacion/escribir-paginas.mdx) y la
+referencia de la API en
+[Actualizar la referencia OpenAPI](content/docs/guias/documentacion/actualizar-openapi.mdx).
 
-Todo contenido editorial va en `docs/content/docs`.
+## Estilo
 
-- Usa nombres `kebab-case`.
-- Cada página `.mdx` debe tener frontmatter `title` y `description`.
-- No agregues `# Título` en el cuerpo; Fumadocs renderiza el título desde frontmatter.
-- Cada página debe abrir con `<Callout title="En resumen">`.
-- Usa `##` y `###` para secciones.
-- Usa bloques `mermaid` para diagramas.
-- Actualiza el `meta.json` del directorio al agregar una página.
+La paleta replica los tokens del producto (`DESIGN.md`, `frontend/src/app/globals.css`)
+sobre las variables `--color-fd-*` de Fumadocs en `app/app.css`, con Geist como
+tipografía y modo claro/oscuro. Mantén esa correspondencia al cambiar tokens.
 
-## Autenticación opcional
+## Acceso
 
-`.env.example` incluye:
-
-```bash
-VITE_API_HOST=http://localhost:8200
-VITE_DOCS_REQUIRE_AUTH=false
-```
-
-Si `VITE_DOCS_REQUIRE_AUTH=true`, `auth-guard.tsx` redirige a `/login` y `session.tsx` guarda access/refresh token en `localStorage`.
-
-Este guard es cliente. En un sitio estático, el contenido ya prerenderizado existe en los archivos generados, así que no protege documentos sensibles a nivel servidor. Para documentación privada real, sirve el build detrás de autenticación en infraestructura o usa un servidor que autorice cada request.
+El sitio no tiene login. Si su contenido debe ser privado, protégelo en el hosting
+(proxy con autenticación o acceso restringido): un guard en el cliente no protege
+archivos prerenderizados.

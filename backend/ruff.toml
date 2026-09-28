@@ -55,6 +55,7 @@ select = [
     "T20",    # flake8-print
     "TID",    # flake8-tidy-imports (activa ban-relative-imports de abajo)
     "RUF",    # reglas propias de Ruff
+    "FAST",   # FastAPI (Annotated dependencies, redundant response_model, path params)
 ]
 
 # Ignorar reglas específicas

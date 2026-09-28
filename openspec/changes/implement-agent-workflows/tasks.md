@@ -95,7 +95,8 @@ de coste/rendimiento de agentes.
 Se corrigieron los hallazgos: recursos no distribuidos, referencias incompatibles,
 check Docker esperando DB, SMTP/clave de fixtures, expectativas incorrectas del
 contrato E2E y gate de entrega que podía omitir la suite API. La matriz de prácticas
-con sus destinos finales está en [el plan](../../../docs/arch_plan.md#16-registro-de-implementación).
+se retiró del repositorio al quedar implementada; sus destinos finales son los
+workflows, la guía de verificación y los ADRs.
 
 Tras `just verify`, se ampliaron assertions del test de migración y el test E2E;
 se renovaron sus pruebas y checks estáticos. Se ajustó el forwarding de argumentos
@@ -116,7 +117,7 @@ repositorio. No se realizó merge, release o deploy.
 ## Refinado autorizado: responsabilidad de clean-fastapi-ddd
 
 La auditoría posterior de los skills propios está documentada en
-[ADR 0003](../../../docs/internal/adr/0003-auditoria-y-depuracion-de-skills.md).
+[ADR 0003](../../../docs/content/docs/equipo/adr/0003-auditoria-y-depuracion-de-skills.md).
 Retira los dos skills redundantes, delimita las bibliotecas y evita duplicación
 de los 17 skills mantenidos en discovery de Codex. Su registro incluye el nuevo
 snapshot y evidencia de tooling, escenarios, clientes y Copier; la evidencia
@@ -125,7 +126,7 @@ funcional previa conserva su alcance y revisión originales.
 El usuario pidió acotar este skill después de la entrega inicial. El propósito es
 resolver decisiones arquitectónicas con una interfaz precisa, conservando expertise
 y evitando otro workflow de implementación. Se mantiene el nombre para discovery.
-Decisión: [ADR 0002](../../../docs/internal/adr/0002-responsabilidad-del-skill-de-arquitectura-backend.md).
+Decisión: [ADR 0002](../../../docs/content/docs/equipo/adr/0002-responsabilidad-del-skill-de-arquitectura-backend.md).
 
 - clean-fastapi-ddd conserva propiedad de conceptos, dependencias, casos de uso,
   repositorios/adapters, DI y presentación; referencias de capacidades condicionales.

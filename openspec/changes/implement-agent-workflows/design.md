@@ -21,7 +21,7 @@ postinstall opcional, manteniendo frontend/docs independientes.
 La paridad del schema se repara en una revisión nueva, sin editar la inicial:
 constraints únicos redundantes se retiran conservando sus índices únicos y se
 aplica la FK owner declarada en el ORM. Datos huérfanos producen un fallo explícito,
-no una limpieza implícita. Ver [ADR](../../../docs/internal/adr/0001-ciclo-de-cambios-y-verificacion.md).
+no una limpieza implícita. Ver [ADR](../../../docs/content/docs/equipo/adr/0001-ciclo-de-cambios-y-verificacion.md).
 
 ## Risks / Trade-offs
 

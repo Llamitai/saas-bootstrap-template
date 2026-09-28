@@ -31,7 +31,7 @@ class TenantUpdater(TenantMixin, UseCase):
             return
 
         assert self.storage_service is not None  # callers inject storage whenever a logo is sent
-        uploaded_file = self.storage_service.upload_file(
+        uploaded_file = await self.storage_service.upload_file(
             replace(self.logo, file_path=self._build_logo_path(tenant, self.logo.file_name))
         )
 

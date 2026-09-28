@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXCLUDED_NAMES = {"__pycache__", ".DS_Store", "node_modules", ".venv", ".pytest_cache", ".ruff_cache"}
+# evals/ holds Claude Code `claude plugin eval` suites; other clients cannot run them.
+EXCLUDED_NAMES = {"__pycache__", ".DS_Store", "node_modules", ".venv", ".pytest_cache", ".ruff_cache", "evals"}
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 

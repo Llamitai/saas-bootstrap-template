@@ -10,6 +10,7 @@ import { Textarea } from "@/shared/ui/textarea";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: shadcn InputGroup wraps one input and its addons; a fieldset would reset its layout.
     <div
       data-slot="input-group"
       role="group"
@@ -49,6 +50,8 @@ function InputGroupAddon({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: shadcn addon inside the InputGroup; a fieldset would reset its layout.
+    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer shortcut that focuses the input; keyboard users tab to the input directly.
     <div
       role="group"
       data-slot="input-group-addon"

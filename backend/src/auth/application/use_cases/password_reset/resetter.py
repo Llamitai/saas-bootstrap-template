@@ -1,16 +1,14 @@
-"""Consume a password-reset token and apply the new password."""
+"""Consume a password-reset token, apply the new password and close every session."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from uuid import UUID
 
 from src.common.domain.enums.jwt import JwtTokenScope
 from src.common.domain.exceptions.common import InvalidOrExpiredTokenError
 from src.common.domain.interfaces.use_case import UseCase
-from src.common.domain.services.token_service import TokenService
-from src.common.domain.services.token_store import TokenStore
+from src.common.domain.services.token_service import USER_SESSION_NAMESPACE, TokenService
 from src.users.domain.repositories.user import UserRepository
 
 
@@ -20,19 +18,15 @@ class PasswordResetter(UseCase):
     new_password: str
     user_repository: UserRepository
     token_service: TokenService
-    token_store: TokenStore
 
     async def execute(self) -> None:
-        claims = await self.token_service.get_claims(
+        # Single-use: the token is consumed atomically before anything else, so a
+        # replay (or a concurrent duplicate) is rejected even before it expires.
+        claims = await self.token_service.consume_one_shot_token(
             self.token,
             scope=JwtTokenScope.PASSWORD_RESET,
         )
         if claims is None:
-            raise InvalidOrExpiredTokenError
-
-        # Single-use: a token whose jti was already consumed is rejected,
-        # even if it has not expired yet.
-        if await self.token_store.is_blacklisted(jti=claims.jti, namespace=claims.ns):
             raise InvalidOrExpiredTokenError
 
         try:
@@ -47,13 +41,4 @@ class PasswordResetter(UseCase):
         if not ok:
             raise InvalidOrExpiredTokenError
 
-        # Burn the token for its remaining lifetime so it cannot be replayed.
-        await self.token_store.blacklist_token_jti(
-            jti=claims.jti,
-            ttl=self._remaining_seconds(claims.exp),
-            namespace=claims.ns,
-        )
-
-    @staticmethod
-    def _remaining_seconds(exp: int) -> int:
-        return max(exp - int(datetime.now(UTC).timestamp()), 0)
+        await self.token_service.revoke_all_sessions(sub=str(user_id), namespace=USER_SESSION_NAMESPACE)

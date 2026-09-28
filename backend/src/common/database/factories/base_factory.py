@@ -3,6 +3,8 @@ from typing import ClassVar
 from async_factory_boy.factory.sqlalchemy import AsyncSQLAlchemyFactory
 from sqlalchemy import select
 
+from src.common.infrastructure.helpers.database import atomic_transaction
+
 
 class AsyncSQLAlchemyTestFactory(AsyncSQLAlchemyFactory):
     _created_uuid_instances: ClassVar[list] = []
@@ -23,9 +25,8 @@ class AsyncSQLAlchemyTestFactory(AsyncSQLAlchemyFactory):
 
         stmt = select(model_class).filter(model_class.uuid.in_(created_uuid_instances))
 
-        orm_instances = (await session.execute(stmt)).scalars().all()
-
-        for orm_instance in orm_instances:
-            created_uuid_instances.remove(orm_instance.uuid)
-            await session.delete(orm_instance)
-        await session.commit()
+        async with atomic_transaction(session):
+            orm_instances = (await session.execute(stmt)).scalars().all()
+            for orm_instance in orm_instances:
+                created_uuid_instances.remove(orm_instance.uuid)
+                await session.delete(orm_instance)

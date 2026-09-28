@@ -1,55 +1,29 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import path from "node:path";
+import { glob } from "node:fs/promises";
 import type { Config } from "@react-router/dev/config";
+import { getSlugs } from "fumadocs-core/source";
+import { openapi, openapiPages } from "./lib/openapi";
+import { contentDir, slugsToUrl } from "./lib/repo-links";
 
-const docsDir = path.join(process.cwd(), "content", "docs");
-
-function toRoutePath(filePath: string) {
-  const relative = path.relative(docsDir, filePath).replace(/\\/g, "/");
-  const withoutExtension = relative.replace(/\.mdx?$/, "");
-  const segments = withoutExtension.split("/");
-
-  if (segments.at(-1) === "index") {
-    segments.pop();
+async function pageSlugs() {
+  const slugs: string[][] = [];
+  for await (const entry of glob("**/*.{md,mdx}", { cwd: contentDir })) {
+    slugs.push(getSlugs(entry));
   }
-
-  return `/docs${segments.length > 0 ? `/${segments.join("/")}` : ""}`;
-}
-
-function collectMdxFiles(dir: string): string[] {
-  if (!existsSync(dir)) {
-    return [];
+  const generated = await openapi.staticSource(openapiPages);
+  for (const file of generated.files) {
+    if (file.type === "page") slugs.push(getSlugs(file.path));
   }
-
-  return readdirSync(dir).flatMap((entry) => {
-    const fullPath = path.join(dir, entry);
-    const stats = statSync(fullPath);
-
-    if (stats.isDirectory()) {
-      return collectMdxFiles(fullPath);
-    }
-
-    return /\.mdx?$/.test(entry) ? [fullPath] : [];
-  });
+  return slugs;
 }
-
-const docPaths = collectMdxFiles(docsDir).map(toRoutePath);
-const llmsMdxPaths = docPaths
-  .filter((url) => url !== "/docs")
-  .map((url) => url.replace(/^\/docs/, "/llms.mdx/docs"));
 
 export default {
   ssr: true,
-  prerender: {
-    paths: [
-      "/",
-      "/login",
-      "/api/search",
-      "/llms.txt",
-      "/llms-full.txt",
-      ...docPaths,
-      ...llmsMdxPaths,
-    ],
-    concurrency: 4,
+  async prerender({ getStaticPaths }) {
+    const paths = getStaticPaths();
+    for (const slugs of await pageSlugs()) {
+      paths.push(slugsToUrl(slugs));
+      paths.push(`/llms.mdx/docs/${[...slugs, "content.md"].join("/")}`);
+    }
+    return paths;
   },
 } satisfies Config;

@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, type ReactNode, useContext } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, type ReactNode, useCallback, useContext } from "react";
 
 import type { Tenant } from "@/entities/tenant";
 import type { TenantRole } from "@/entities/tenant-role";
@@ -48,9 +49,18 @@ export function useSession() {
 }
 
 export function useSessionActions() {
+  const queryClient = useQueryClient();
+  const clearStoredSession = useSessionStore((state) => state.clearSession);
+  // Query keys are not scoped by user or tenant, so ending a session must
+  // drop every cached response (cache-scope rule).
+  const clearSession = useCallback(() => {
+    clearStoredSession();
+    queryClient.clear();
+  }, [clearStoredSession, queryClient]);
+
   return {
     setSession: useSessionStore((state) => state.setSession),
     setAccessToken: useSessionStore((state) => state.setAccessToken),
-    clearSession: useSessionStore((state) => state.clearSession),
+    clearSession,
   };
 }

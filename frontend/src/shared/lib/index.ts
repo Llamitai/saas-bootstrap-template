@@ -15,5 +15,4 @@ export { formatRelativeDate } from "@/shared/lib/format-relative-date";
 export { shortUuid } from "@/shared/lib/short-uuid";
 export { stripMarkdown } from "@/shared/lib/strip-markdown";
 export { useInfiniteScroll } from "@/shared/lib/use-infinite-scroll";
-export { useIsMobile } from "@/shared/lib/use-mobile";
 export { cn } from "@/shared/lib/utils";

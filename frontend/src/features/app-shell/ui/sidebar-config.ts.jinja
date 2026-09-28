@@ -79,3 +79,34 @@ export const sidebarConfig: SidebarConfig = {
     },
   ],
 };
+
+export interface ShellRoute {
+  /** Top-level path the sidebar highlights. */
+  activePath: string;
+  /** Catalog namespace and key of the breadcrumb label. */
+  label: { namespace: "Nav" | "NavUser"; key: string };
+}
+
+const shellRoutes: ShellRoute[] = [
+  ...sidebarConfig.navMain,
+  ...sidebarConfig.projects,
+].map((item) => ({
+  activePath: item.url,
+  label: { namespace: "Nav", key: item.i18nKey },
+}));
+
+shellRoutes.push({
+  activePath: "/profile",
+  label: { namespace: "NavUser", key: "profile" },
+});
+
+/** Resolves the shell route that owns a pathname, including nested pages. */
+export function resolveShellRoute(pathname: string): ShellRoute | null {
+  return (
+    shellRoutes.find(
+      (route) =>
+        pathname === route.activePath ||
+        pathname.startsWith(`${route.activePath}/`)
+    ) ?? null
+  );
+}

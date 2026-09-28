@@ -1,6 +1,16 @@
 {
   "title": "Conceptos",
+  "description": "Arquitectura y dominio",
+  "icon": "Lightbulb",
+  "root": true,
   "pages": [
-    "index"
+    "index",
+    "dominio",
+    "modelo-de-datos",
+    "---Backend---",
+    "arquitectura-backend",
+    "---Frontend---",
+    "arquitectura-frontend",
+    "roadmap-frontend"
   ]
 }

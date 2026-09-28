@@ -1,0 +1,68 @@
+---
+title: Crear un módulo backend
+description: Añadir un módulo o un caso de uso siguiendo las capas y ubicaciones del backend.
+icon: Boxes
+---
+
+<Callout title="En resumen">
+  Copia la forma de un módulo instalado (`auth`, `tenants` o `users` para uno completo) y crea solo las capas que el caso necesita. Los modelos ORM siempre van en `src/common/database/models/`.
+</Callout>
+
+Las rutas son relativas a `backend/`. La explicación de las capas está en [Arquitectura backend](../../conceptos/arquitectura-backend.mdx); la referencia detallada, en el skill [backend-architecture](../../../../../.claude/skills/backend-architecture/references/layers.md).
+
+## Antes de empezar
+
+- Un cambio funcional usa una change OpenSpec con criterios observables; el workflow [define-change](../../../../../.claude/skills/define-change/SKILL.md) la prepara.
+- Construye cada comportamiento en ciclos rojo → verde → refactor ([tdd](../../../../../.claude/skills/tdd/SKILL.md)).
+- Si el cambio toca tablas o columnas, empieza por [la migración](migraciones.mdx).
+
+## Pasos
+
+<Steps>
+  <Step>
+    ### Dominio
+
+    Modelo de dominio compartido en `src/common/domain/models/` y puerto del repositorio en `src/<module>/domain/repositories/`. Los errores de negocio heredan de `DomainError` (código, mensaje y status HTTP).
+  </Step>
+  <Step>
+    ### Caso de uso
+
+    Una dataclass que implementa `UseCase.execute()` en `src/<module>/application/use_cases/<subject>/<action>.py`, una operación por archivo. Recibe sus repositorios por constructor; no importa SQLAlchemy ni FastAPI.
+  </Step>
+  <Step>
+    ### Adaptador SQL
+
+    `src/<module>/infrastructure/repositories/sql_*.py` implementa el puerto. El builder ORM → dominio vive en `src/common/infrastructure/builders/`. Cada escritura hace commit o rollback dentro de `atomic_transaction`: no hay transacción por request, así que dos escrituras no son atómicas entre sí.
+  </Step>
+  <Step>
+    ### Presentación
+
+    Endpoint en `presentation/endpoints/`, presenter en `presentation/presenters/` y registro con `add_api_route()` en `presentation/router.py`. Las respuestas usan `ApiJSONResponse` y salen en camelCase.
+  </Step>
+  <Step>
+    ### Cableado
+
+    Inyección explícita desde los contextos existentes (`DomainContext`, `BusContext`). Un router nuevo se incluye en `config/router.py`.
+
+    Registra el módulo en los contratos de import-linter de `backend/pyproject.toml` (`containers` del contrato de capas y la lista de features del contrato de dominio compartido). Un test de arquitectura falla si falta.
+  </Step>
+</Steps>
+
+## Comprobar
+
+```bash
+just backend test unit tests/<module>   # tests del módulo (necesita Docker)
+just backend check                      # Ruff, ty e import-linter sin autofix
+just backend openapi                    # si cambió el contrato HTTP
+```
+
+Si cambian rutas, parámetros o respuestas, regenera también la [referencia OpenAPI](../documentacion/actualizar-openapi.mdx). Los contratos de import-linter en `pyproject.toml` hacen cumplir la dirección de dependencias.
+
+## Errores frecuentes
+
+- Importar SQLAlchemy o una sesión en `application/`: esa consulta pertenece a un repositorio.
+- Poner handlers del bus en `infrastructure/`: son código de aplicación; solo su cableado es infraestructura.
+- Crear capas vacías para completar el árbol.
+- Hacer una escritura con `flush()` sin `atomic_transaction`: se pierde al cerrar la sesión.
+- Llamar a bcrypt, boto3 u otro código bloqueante directamente en una ruta async: pásalo por `asyncio.to_thread`.
+- Dejar un concepto compartido dentro de un módulo: pasa a `src/common/` cuando lo necesita un segundo módulo.

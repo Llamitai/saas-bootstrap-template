@@ -1,0 +1,7 @@
+{
+  "title": "Empezar",
+  "description": "Instalación y primer recorrido",
+  "icon": "Rocket",
+  "root": true,
+  "pages": ["index", "instalacion", "estructura", "crear-un-proyecto"]
+}

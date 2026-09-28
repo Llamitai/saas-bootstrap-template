@@ -1,4 +1,5 @@
-import { isAxiosError } from "axios";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSessionStore } from "@/features/auth";
 import type {
   Profile,
   UpdatePasswordPayload,
@@ -6,16 +7,10 @@ import type {
 } from "@/features/profile/model/types";
 import { authHttp } from "@/shared/http/client";
 
-type ErrorEnvelope = {
-  errors?: Array<{ message?: unknown }>;
+export const profileKeys = {
+  all: ["profile"] as const,
+  detail: () => ["profile", "me"] as const,
 };
-
-export function profileErrorMessage(error: unknown, fallback: string): string {
-  if (!isAxiosError(error)) return fallback;
-  const data = error.response?.data as ErrorEnvelope | undefined;
-  const message = data?.errors?.[0]?.message;
-  return typeof message === "string" ? message : fallback;
-}
 
 export async function getProfile(): Promise<Profile> {
   const response = await authHttp.get<{ data: Profile }>("/v1/me/profile");
@@ -36,4 +31,27 @@ export async function updatePassword(
   payload: UpdatePasswordPayload
 ): Promise<void> {
   await authHttp.put("/v1/me/password", payload);
+}
+
+export function useProfileQuery() {
+  return useQuery({
+    queryKey: profileKeys.detail(),
+    queryFn: getProfile,
+  });
+}
+
+export function useUpdateProfileMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateProfile,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(profileKeys.detail(), profile);
+      // The shell reads the signed-in user from the session store.
+      useSessionStore.getState().setUser(profile);
+    },
+  });
+}
+
+export function useUpdatePasswordMutation() {
+  return useMutation({ mutationFn: updatePassword });
 }

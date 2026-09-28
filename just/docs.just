@@ -23,6 +23,23 @@ preview:
 install:
     pnpm install
 
-# Type-check
+# ─── CODE QUALITY ───────────────────────────────────────────────
+
+# Format with Biome
+format:
+    pnpm format:write
+
+# Lint with Biome and organize imports (safe autofix only)
+lint:
+    pnpm check:fix
+
+# Type-check (React Router typegen + tsc)
 typecheck:
     pnpm types:check
+
+# Run format + lint + typecheck
+code_quality: format lint typecheck
+
+# Static gate without autofix (typecheck + Biome)
+check:
+    pnpm check:static

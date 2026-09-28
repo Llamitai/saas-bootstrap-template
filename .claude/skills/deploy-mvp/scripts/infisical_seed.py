@@ -16,10 +16,15 @@ Commands:
     apply           upsert the planned secrets (idempotent)
     check           verify cross-service invariants after seeding
 
+Global options (--env-file, --insecure) go BEFORE the subcommand. `plan` and
+`apply` require an explicit --project-id; there is deliberately no fallback, so
+a frontend seed can never land in the backend project.
+
 Example:
-    infisical_seed.py plan --env-file .env.deploy \\
+    infisical_seed.py --env-file .env.deploy plan \\
         --template backend/.env.example --overrides .env.deploy.generated \\
         --project-id "$BACKEND_PROJECT_ID" --environment prod
+    infisical_seed.py --env-file .env.deploy check --environment prod
 """
 
 from __future__ import annotations
@@ -67,6 +72,8 @@ SAFE_TEMPLATE_DEFAULTS = {
     "POSTGRES_PORT",
     "REDIS_PORT",
     "REDIS_DB",
+    "RABBITMQ_PORT",
+    "RABBITMQ_VHOST",
     "GOOGLE_CERTS_URL",
     "SENTRY_TRACES_SAMPLE_RATE",
     "SENTRY_PROFILES_SAMPLE_RATE",
@@ -75,15 +82,17 @@ SAFE_TEMPLATE_DEFAULTS = {
 
 # Keys that may legitimately be blank in production. They are reported as
 # warnings and skipped rather than blocking the apply.
+# REDIS_USER/REDIS_PASSWORD are NOT here: backend settings refuse to start in
+# production without REDIS_PASSWORD, and the production redis_url embeds
+# REDIS_USER verbatim (an unset user becomes the literal "None"). Likewise
+# RABBITMQ_HOST/USER/PASSWORD must come from the operator (the template values
+# target the bundled dev broker).
 #   AWS_S3_ENDPOINT_URL empty  -> real AWS S3 rather than a MinIO-compatible host
-#   REDIS_USER/PASSWORD empty  -> Redis reachable only on the private network
 #   SENTRY_DSN empty           -> error reporting off
 OPTIONAL_EMPTY = {
     "AWS_S3_ENDPOINT_URL",
     "AWS_CLOUDFRONT_DOMAIN",
     "AWS_S3_PUBLIC_URL",
-    "REDIS_USER",
-    "REDIS_PASSWORD",
     "SENTRY_DSN",
     "ADMIN_LOGO_URL",
     "ADMIN_LOGIN_LOGO_URL",
@@ -439,10 +448,15 @@ def cmd_create_project(args: argparse.Namespace, env: dict[str, str]) -> int:
 
 
 def resolve_plan(args: argparse.Namespace, env: dict[str, str]):
-    api = connect(args, env)
-    project_id = args.project_id or env.get("BACKEND_PROJECT_ID", "")
+    # No fallback to BACKEND_PROJECT_ID: an implicit default would let a
+    # frontend seed write into the backend project.
+    project_id = args.project_id or ""
     if not project_id:
-        raise InfisicalError("no --project-id and no BACKEND_PROJECT_ID in the env file")
+        raise InfisicalError(
+            "--project-id is required (BACKEND_PROJECT_ID for backend/.env.example, "
+            "FRONTEND_PROJECT_ID for frontend/.env.example)"
+        )
+    api = connect(args, env)
     environment = args.environment or env.get("INFISICAL_SECRET_ENV", "prod")
 
     template = template_keys(Path(args.template))
@@ -552,7 +566,9 @@ def main() -> int:
     seed_args = argparse.ArgumentParser(add_help=False)
     seed_args.add_argument("--template", required=True, help="path to a .env.example")
     seed_args.add_argument("--overrides", default=".env.deploy.generated")
-    seed_args.add_argument("--project-id", default=None)
+    seed_args.add_argument(
+        "--project-id", default=None, help="REQUIRED: target Infisical project id (no fallback)"
+    )
     seed_args.add_argument("--environment", default=None, help="default: INFISICAL_SECRET_ENV")
     seed_args.add_argument("--path", default="/", help="Infisical secret path")
     seed_args.add_argument(

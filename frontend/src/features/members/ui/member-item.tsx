@@ -110,8 +110,9 @@ export function MemberItem({
         <p className="text-xs text-muted-foreground truncate">{memberEmail}</p>
       </div>
 
-      <div
-        className="flex items-center gap-2 shrink-0"
+      {/* Row actions: stop clicks and keys from also activating the row. */}
+      <fieldset
+        className="m-0 flex min-w-0 shrink-0 items-center gap-2 border-0 p-0"
         onClick={stop}
         onKeyDown={stop}
       >
@@ -175,7 +176,7 @@ export function MemberItem({
             <TooltipContent>{t("deleteTooltip")}</TooltipContent>
           </Tooltip>
         )}
-      </div>
+      </fieldset>
     </Card>
   );
 }

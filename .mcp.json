@@ -6,7 +6,7 @@
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
+      "args": ["-y", "chrome-devtools-mcp@1.10.1"]
     },
     "shadcn": {
       "command": "./frontend/node_modules/.bin/shadcn",
@@ -14,7 +14,7 @@
     },
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": ["-y", "@playwright/mcp@0.0.82"]
     },
     "context7": {
       "type": "http",

@@ -1,5 +1,5 @@
 import type { AxiosError } from "axios";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { serverConfig } from "@/shared/config/server";
 
@@ -11,10 +11,54 @@ import { serverConfig } from "@/shared/config/server";
  * backend junto con la X-Api-Key server-only — el mismo contrato que aplica
  * el proxy de `/api/v1/*` (src/proxy.ts).
  */
-export function backendHeadersFrom(
-  request: NextRequest
+type IncomingRequest = { headers: Pick<Headers, "get"> };
+
+/** Header the backend trusts for rate limits, only next to a valid X-Api-Key. */
+export const CLIENT_IP_HEADER = "X-Client-IP";
+
+const IPV4 =
+  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+export function isIpAddress(value: string): boolean {
+  if (IPV4.test(value)) return true;
+  if (!value.includes(":") || !/^[0-9a-fA-F:.]+$/.test(value)) return false;
+  try {
+    // The WHATWG URL parser validates IPv6 literals.
+    new URL(`http://[${value}]/`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Client IP as seen by this frontend: the configured trusted edge header
+ * (TRUSTED_CLIENT_IP_HEADER) or, without one, the last X-Forwarded-For hop,
+ * which Next's server fills with the socket address. Invalid values yield
+ * null. Without a trusted edge, a client that talks to Next directly can
+ * still choose that last hop.
+ */
+export function resolveClientIp(request: IncomingRequest): string | null {
+  const trusted = serverConfig.trustedClientIpHeader;
+  const raw = trusted
+    ? request.headers.get(trusted)
+    : request.headers.get("x-forwarded-for")?.split(",").at(-1);
+  const ip = raw?.trim() ?? "";
+  return ip && isIpAddress(ip) ? ip : null;
+}
+
+/** `X-Client-IP` for backend calls; never the browser-supplied value. */
+export function clientIpHeaders(
+  request: IncomingRequest
 ): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const ip = resolveClientIp(request);
+  return ip ? { [CLIENT_IP_HEADER]: ip } : {};
+}
+
+export function backendHeadersFrom(
+  request: IncomingRequest
+): Record<string, string> {
+  const headers: Record<string, string> = clientIpHeaders(request);
 
   const auth = request.headers.get("authorization");
   if (auth) headers.Authorization = auth;
@@ -44,7 +88,7 @@ export function mirrorBackendError(error: unknown): NextResponse {
   if (axiosError?.response) {
     const data = axiosError.response.data ?? {
       errors: [
-        { code: "bff.upstream_error", message: "Error del servicio backend" },
+        { code: "bff.upstream_error", message: "Backend service error" },
       ],
       validation: null,
     };
@@ -55,7 +99,7 @@ export function mirrorBackendError(error: unknown): NextResponse {
       errors: [
         {
           code: "bff.upstream_unreachable",
-          message: "No se pudo contactar al backend",
+          message: "Backend unreachable",
         },
       ],
       validation: null,

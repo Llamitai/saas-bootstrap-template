@@ -26,10 +26,6 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyTimeout: 5 * 60 * 1000,
   },
-  webpack: (config) => {
-    config.resolve.alias.canvas = false;
-    return config;
-  },
   async rewrites() {
     return {
       afterFiles: [

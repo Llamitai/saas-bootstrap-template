@@ -1,5 +1,7 @@
 # Infisical API and CLI reference
 
+Contents: [Authentication — machine identity (Universal Auth)](#authentication--machine-identity-universal-auth) · [Projects](#projects) · [Seeding secrets — use the batch upsert](#seeding-secrets--use-the-batch-upsert) · [CLI](#cli) · [Runtime injection — how this repo does it](#runtime-injection--how-this-repo-does-it) · [Troubleshooting](#troubleshooting)
+
 Base URL shape: `{origin}/api/...` — pass the **bare origin**
 (`https://secrets.example.com`), never with `/api` appended. The CLI appends
 `/api` itself; direct HTTP calls include it in the path.
@@ -151,15 +153,22 @@ precedence question entirely.
 
 ```bash
 export INFISICAL_DISABLE_UPDATE_CHECK=true
-export INFISICAL_TOKEN=$(infisical login --method=universal-auth \
+# Assigned before export so a failed login aborts the start.
+INFISICAL_TOKEN=$(infisical login --method=universal-auth \
     --client-id=$INFISICAL_MACHINE_CLIENT_ID \
     --client-secret=$INFISICAL_MACHINE_CLIENT_SECRET \
     --domain=$INFISICAL_API_URL --plain --silent)
+export INFISICAL_TOKEN
 exec infisical run \
     --token $INFISICAL_TOKEN --projectId $PROJECT_ID \
     --env $INFISICAL_SECRET_ENV --domain $INFISICAL_API_URL \
-    -- /commands
+    -- /commands "$@"
 ```
+
+`/commands` takes a role: `api` (default; `alembic upgrade head`, then `exec
+uvicorn`), `worker` (`exec python -m config.worker`, the RabbitMQ consumer) or `migrate`. The prod compose runs the API as
+`/start api` and a separate `worker` service as `/start worker` that waits for the
+API healthcheck (`/api/py/health`).
 
 The token is minted **inside the container at boot**, so it never outlives the
 process and is never stored anywhere. The five variables it needs are exactly

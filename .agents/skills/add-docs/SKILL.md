@@ -1,10 +1,11 @@
 ---
 name: add-docs
 description: >
-  Write or update an illustrated MDX documentation page in the SaaS Bootstrap
-  Fumadocs site under docs/content/docs. Use for site documentation or a diagram
-  explaining current code there. Internal notes, ADRs, OpenSpec artifacts and
-  product UI belong to their existing workflows.
+  Write or update an illustrated documentation page in the SaaS Bootstrap
+  Fumadocs site under docs/content/docs. Use for a tutorial, guide, concept or
+  reference page, or a diagram explaining current code there. ADRs follow their
+  own format, the API reference is generated (openapi-sync), and OpenSpec
+  artifacts and product UI belong to their existing workflows.
 ---
 
 # Add a documentation page
@@ -16,33 +17,41 @@ The docs app uses React Router + Fumadocs; read installed versions from
 
 ## Establish the page
 
-Read the request, existing related pages and `docs/README.md`. Reuse the agreed
-subject and audience. If the requested artifact is an ADR, internal engineering
-note or change spec, use its existing location and workflow instead of creating
-an MDX copy. This skill does not own architectural decisions or acceptance.
+Read `docs/AGENTS.md` (the docs constitution), the request, existing related
+pages and `docs/content/docs/guias/documentacion/escribir-paginas.mdx`. Reuse the agreed
+subject and audience. An ADR goes in `docs/content/docs/equipo/adr/` with the
+format in its `index.md`; a change spec stays in OpenSpec; endpoint reference
+pages are generated from OpenAPI, never written by hand. This skill does not own
+architectural decisions or acceptance.
 
 Write in Spanish by default, as required by the project. Honor an explicit user
 language choice without asking again. This applies to titles, prose, tables,
-links and diagram labels; preserve identifiers, paths, enums and syntax.
+links and diagram labels; preserve identifiers, paths, enums, Mermaid keywords
+and other syntax. Keep one language per page.
 
-Choose the existing section that best fits: `conceptos/`, `arquitectura/` or
-`operacion/`. Ask only if an unresolved subject/audience choice would materially
-change the page; ordinary filename or section selection is an implementation
-decision.
+Choose the tab by the reader's need (Diátaxis): `(empezar)/` tutorials,
+`guias/<area>/` how-to guides, `conceptos/` explanation, `referencia/` exact
+facts, `equipo/` repository contracts. Ask only if an unresolved
+subject/audience choice would materially change the page; ordinary filename or
+section selection is an implementation decision.
 
 ## Research and write
 
-Read [reference.md](reference.md) for MDX/frontmatter, sidebar rules, components
-and diagram recipes. Trace the actual symbols and flows before drawing: central
-ORM models for an ERD, or routers, use cases and adapters for a request flow.
-Internal docs help research, but diagrams must describe the installed code.
+Consult only the relevant part of [reference.md](reference.md): §§1–2 for a new
+sidebar placement, unfamiliar MDX structure or component; §3 for Mermaid; §§4–5
+for custom media; §6 for preview details. Trace the actual symbols and flows
+before drawing: central ORM models for an ERD, or routers, use cases and
+adapters for a request flow. Diagrams must describe the installed code.
 
 Use [the page skeleton](templates/doc-template.mdx) as needed. Keep these site
 constraints:
 
-- `.mdx` files and ASCII kebab-case slugs under `docs/content/docs/`.
-- Required `title` and `description` frontmatter; no duplicate body H1. Start
-  with the site's `<Callout title="En resumen">` opener.
+- `.mdx` for pages with components, `.md` for plain contracts; ASCII
+  kebab-case slugs under `docs/content/docs/`.
+- Required `title` and `description` frontmatter, optional Lucide `icon`; no
+  duplicate body H1. `.mdx` pages start with `<Callout title="En resumen">`.
+- Link with file-relative paths (`../equipo/verificacion.md`); the site rewrites
+  them to page URLs and repository links, and `just agent-check` validates them.
 - Register the slug in the directory's `meta.json`; new directories also need
   a parent entry and their own `meta.json`.
 - Use plain fenced Mermaid for diagrams; the site owns its styling and theme.
@@ -55,7 +64,8 @@ useful page. Do not restate a separate specification or invent product modules.
 
 ## Verify and report
 
-Run `just docs build` from the Git root to compile MDX and prerender the routes.
+Run `just docs build` and `just agent-check` from the Git root: the build
+compiles and prerenders every route; the check validates links and frontmatter.
 Fix frontmatter, JSX, imports or sidebar problems introduced by the page. A
 successful build verifies rendering prerequisites, not diagram accuracy; check
 the labels and relationships against the code you researched.

@@ -125,14 +125,15 @@ class SQLUserRepository(UserRepository):
         if orm_instance.password is None:
             return False
 
-        return check_password(raw_password, orm_instance.password)
+        return await check_password(raw_password, orm_instance.password)
 
     async def set_password(self, user_id: UUID, new_password: str) -> bool:
+        hashed_password = await hash_password(new_password)
         async with atomic_transaction(self.session):
             orm_user = await self._find(user_id=user_id)
             if orm_user is None:
                 return False
-            orm_user.password = hash_password(new_password)
+            orm_user.password = hashed_password
             await self.session.flush()
         return True
 
@@ -164,13 +165,14 @@ class SQLUserRepository(UserRepository):
             return build_user(user_orm)
 
     async def remove(self, user_id: UUID):
-        stmt = select(UserORM).where(UserORM.uuid == user_id)
-        result = await self.session.execute(stmt)
-        orm_instance = result.scalar_one_or_none()
+        async with atomic_transaction(self.session):
+            stmt = select(UserORM).where(UserORM.uuid == user_id)
+            result = await self.session.execute(stmt)
+            orm_instance = result.scalar_one_or_none()
 
-        if orm_instance:
-            await self.session.delete(orm_instance)
-            await self.session.flush()
+            if orm_instance:
+                await self.session.delete(orm_instance)
+                await self.session.flush()
 
     async def update_current_tenant(self, user_id: UUID, tenant_id: UUID) -> None:
         async with atomic_transaction(self.session):
@@ -185,8 +187,8 @@ class SQLUserRepository(UserRepository):
             await self.session.flush()
 
     async def create_user(self, user: User, password: str, is_superuser: bool = False) -> User:
+        hashed_password = await hash_password(password)
         async with atomic_transaction(self.session):
-            hashed_password = hash_password(password)
             assert user.email_address is not None
             email_address_orm = await self._get_or_create_email(user.email_address.email)
 

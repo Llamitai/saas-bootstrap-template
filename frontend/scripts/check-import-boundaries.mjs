@@ -264,18 +264,6 @@ function checkImport({ file, relativePath, source, specifier, resolved }) {
 
   if (!isBrowserFacing(relativePath, source)) return;
 
-  if (resolved === "src/settings" || resolved.startsWith("src/settings/")) {
-    addViolation(
-      file,
-      `browser-facing code must not import backend settings via ${specifier}`
-    );
-  }
-  if (resolved.startsWith("src/shared/api/repositories/")) {
-    addViolation(
-      file,
-      `browser-facing code must not import raw repositories via ${specifier}`
-    );
-  }
   if (resolved === "src/shared/http/requests") {
     addViolation(
       file,
@@ -329,12 +317,6 @@ for await (const file of walk(root)) {
       addViolation(
         file,
         "browser-facing code must not read NEXT_PUBLIC_BACKEND_API_HOST"
-      );
-    }
-    if (source.includes("Settings.apiBaseUrl")) {
-      addViolation(
-        file,
-        "browser-facing code must not read Settings.apiBaseUrl"
       );
     }
   }

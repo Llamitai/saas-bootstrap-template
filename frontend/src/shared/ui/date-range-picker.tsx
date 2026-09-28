@@ -153,6 +153,7 @@ export function DateRangePicker({
               "transition-[opacity,transform] duration-150"
             )}
           >
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: clears a pointer-only hover preview; keyboard selection does not depend on it. */}
             <div className="flex gap-6" onMouseLeave={() => setHoverDate("")}>
               <Calendar
                 month={leftMonth}

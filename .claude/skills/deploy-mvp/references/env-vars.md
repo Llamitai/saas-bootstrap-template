@@ -1,17 +1,25 @@
 # Environment variable catalog
 
+Contents: [Tier 1](#tier-1--application-secrets-stored-in-infisical) ·
+[Backend project](#backend-project) · [Frontend project](#frontend-project) ·
+[Invariants](#cross-service-invariants--verify-before-declaring-success) ·
+[Tier 2](#tier-2--bootstrap-variables-portainer-stack-env) ·
+[Tier 3](#tier-3--ci-configuration-github) ·
+[Two names that need a decision](#two-names-that-need-a-decision) ·
+[Unset variables](#why-an-unset-variable-is-dangerous)
+
 Three distinct tiers. Confusing them is the single most common cause of a
 broken first deploy.
 
 | Tier | Lives in | Read by | Count |
 | --- | --- | --- | --- |
 | **1. Application secrets** | Infisical project | The app process, injected at container start by `infisical run` | ~45 |
-| **2. Bootstrap variables** | Portainer stack env + GitHub Actions | The container entrypoint, to reach Infisical | 5 |
-| **3. CI variables** | GitHub repo/environment vars + secrets | GitHub Actions workflows | ~15 |
+| **2. Bootstrap variables** | Portainer stack env (sent by CI as `env_data`) | The container entrypoint, to reach Infisical; compose for Directus | 5 (+ `IMAGE_TAG`; backend adds 8 Directus keys) |
+| **3. CI variables** | GitHub environment vars + secrets | GitHub Actions workflows | 16 variables + 8 secrets (`github_setup.sh`) |
 
 The container never receives tier 1 from Portainer. Portainer only supplies
 tier 2; the entrypoint uses those to log into Infisical and pull tier 1 at
-boot. See `../references/infisical.md` § Runtime injection.
+boot. See `infisical.md` § Runtime injection.
 
 ---
 
@@ -43,19 +51,36 @@ JWT_REFRESH_TOKEN_EXPIRE_MINUTES=10080
 # --- Common ---
 SECRET_KEY=                # openssl rand -base64 32 | tr '+/' '-_' | tr -d '\n'
 
-# --- Database (from step 1: provisioning) ---
+# --- Database (from phase 1: provisioning) ---
 POSTGRES_USER=<project_user>
 POSTGRES_DB=<project_db>
 POSTGRES_HOST=<db host reachable from the Docker network>
 POSTGRES_PORT=5432
 POSTGRES_PASSWORD=<generated>
 
-# --- Redis ---
-REDIS_HOST=redis
-REDIS_USER=
-REDIS_PASSWORD=
+# --- Valkey (Redis protocol; REDIS_* names) ---
+# The production compose files ship NO Valkey service: use a Valkey the backend
+# container can reach, configured like backend/docker/valkey/valkey.conf
+# (maxmemory-policy allkeys-lru, appendonly yes): the refresh-session allowlist
+# fails closed, so eviction only forces a re-login. Settings refuse to start in production without
+# REDIS_PASSWORD (backend/src/common/settings.py validate_secrets), and the
+# production redis_url embeds REDIS_USER verbatim — unset becomes "None".
+REDIS_HOST=<redis reachable from the backend container>
+REDIS_USER=default           # "default" for a requirepass-only Redis
+REDIS_PASSWORD=              # REQUIRED in prod
 REDIS_PORT=6379
 REDIS_DB=0
+
+# --- RabbitMQ (deferred commands: API publishes, worker consumes) ---
+# The production compose files ship NO broker: provision RabbitMQ 4.x reachable
+# from shared-network with the stability settings of
+# backend/docker/rabbitmq/rabbitmq.conf. API and worker fail at startup if it is
+# unreachable. Settings reject a missing or default ('app'/'guest') password.
+RABBITMQ_HOST=<rabbitmq reachable from the backend container>
+RABBITMQ_PORT=5672
+RABBITMQ_USER=<dedicated user>
+RABBITMQ_PASSWORD=           # REQUIRED in prod
+RABBITMQ_VHOST=/             # or a dedicated vhost the user can configure/write/read
 
 # --- Email ---
 SMTP_HOST=
@@ -86,22 +111,36 @@ FRONTEND_HOST=https://app.example.com
 ADMIN_API_KEY=             # openssl rand -hex 32 — MUST equal frontend BACKEND_API_KEY
 ADMIN_LOGO_URL=
 ADMIN_LOGIN_LOGO_URL=
-DIRECTUS_SECRET=
-DIRECTUS_ADMIN_PASSWORD=
+DIRECTUS_SECRET=            # read by the local compose; prod Directus uses the
+DIRECTUS_ADMIN_PASSWORD=    # ADMIN_* stack block (Tier 2) instead
 ```
 
 ### Frontend project
 
 ```dotenv
 NEXT_PUBLIC_BACKEND_API_HOST=https://api.example.com
-BACKEND_API_HOST=http://api:8200      # internal Docker network address
+BACKEND_API_HOST=https://api.example.com  # see note below
 BACKEND_API_KEY=                      # MUST equal backend ADMIN_API_KEY
 NEXT_PUBLIC_VERSION=1.0.0
 NEXT_PUBLIC_APP_URL=https://app.example.com
 NODE_ENV=production
 SENTRY_DSN=
 GOOGLE_CLIENT_ID=
+TRUSTED_CLIENT_IP_HEADER=cf-connecting-ip  # header the edge sets with the real client IP
 ```
+
+`TRUSTED_CLIENT_IP_HEADER` names the header the edge proxy sets (`cf-connecting-ip`
+behind Cloudflare, `x-real-ip` behind nginx). The BFF sends that IP as
+`X-Client-IP`, which the backend trusts only with the API key, so rate limits
+apply per browser. Unset, the last `X-Forwarded-For` hop is used and a client
+that reaches Next directly can choose it.
+
+`BACKEND_API_HOST` is the server-side (BFF) route to the backend.
+`frontend/docker-compose.prod.yml` joins **no** shared network, so the
+internal address `http://api:8200` does not resolve from the `web` container.
+Use the public API origin (or another address the frontend host can reach,
+such as the backend's published host port). Only if the frontend compose is
+changed to join `shared-network` does `http://api:8200` work.
 
 ### Cross-service invariants — verify before declaring success
 
@@ -110,6 +149,9 @@ GOOGLE_CLIENT_ID=
 - `GOOGLE_REDIRECT_URI` must be registered verbatim in the Google Cloud console.
 - `CORS_ORIGINS` must contain the frontend's public origin.
 - `JWT_SECRET_KEY` empty in production is a hard failure (dev auto-generates; prod does not).
+- `JWT_SECRET_KEY`, `SECRET_KEY`, `ADMIN_API_KEY`, `POSTGRES_PASSWORD`,
+  `REDIS_PASSWORD` and `RABBITMQ_PASSWORD` are all required when
+  `ENVIRONMENT=production`; placeholder values are rejected at startup.
 
 ---
 
@@ -143,27 +185,39 @@ ADMIN_PUBLIC_URL=
 ```
 
 > Directus needs its **own** database, separate from the application database.
-> Provision it in step 1 alongside the app database.
+> Provision it in phase 1 alongside the app database.
+
+Every CI deploy sends this whole set as the action's `env_data`, which
+**replaces** the stack env, so the GitHub environment (Tier 3) is the durable
+source. For a stack created by hand, SKILL.md Phase 4 Path B builds
+`.env.deploy.stack.backend` / `.env.deploy.stack.frontend` from
+`.env.deploy.ci` for `portainer_stack.py create --stack-env`.
 
 ---
 
 ## Tier 3 — CI configuration (GitHub)
 
-Configured **after the Portainer stack exists and before trusting CI** — the
-step between "first manual deploy" and "pushes deploy themselves".
+Configured **before the first CI build** (SKILL.md Phase 3): the build
+workflows name the image from `vars.*_REPOSITORY_URI`, and their deploy step
+creates or updates the Portainer stack from the other names below.
 
 Set on **both** deployment environments, `Production` and `Development`. The
 workflows pick one with:
 
 ```yaml
-environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
+environment: ${{ github.event.workflow_run.head_branch == 'main' && 'Production' || 'Development' }}
 ```
 
-so `main` reads `Production` and `dev` reads `Development`. Every name below
+(the build workflows run on `workflow_run` after `Code Quality`, so the branch
+comes from the triggering run), so `main` reads `Production` and `dev` reads
+`Development`. `rollback.yml` takes the environment as an input instead. Every name below
 needs a value in each environment you actually deploy to — a name set only on
 `Production` silently expands to `""` on a `dev` push.
 
-`bash scripts/github_setup.sh --environment <name>` sets exactly this list.
+`bash <skill-dir>/scripts/github_setup.sh --env-file .env.deploy.ci --environment <name>`
+sets exactly this list: 16 variables and 8 secrets. It reads one file, so the
+`ADMIN_DB_*` values phase 1 wrote to `.env.deploy.generated` must be merged in
+first (SKILL.md Phase 3).
 
 ### Variables — `gh variable set` (readable in plaintext by anyone with repo access)
 
@@ -176,7 +230,6 @@ ADMIN_PUBLIC_URL=https://admin.example.com
 
 BACKEND_DEPLOYMENT_COMPOSE_FILE=backend/docker-compose.prod.yml
 BACKEND_DEPLOYMENT_SERVICE=<portainer stack name>
-BACKEND_ECR_REPOSITORY_URI=
 BACKEND_PROJECT_ID=<infisical project id>
 BACKEND_REPOSITORY_URI=ghcr.io/<org>/<project>-api-prod
 
@@ -211,14 +264,8 @@ needed to push from Actions in the same repository.
 
 ### Two names that need a decision
 
-Running `github_setup.sh --audit` against **this** repository reports both of
-these as *configured but read by no workflow*:
-
-- **`BACKEND_ECR_REPOSITORY_URI`** — nothing in `.github/workflows/` reads it.
-  It is a leftover from an ECR-era topology; `BACKEND_REPOSITORY_URI` is the
-  one the build actually uses. Keep setting it if another tool depends on it,
-  otherwise it is dead configuration. (Note there is no `FRONTEND_ECR_*` twin,
-  which is itself a sign it is vestigial.)
+Running `github_setup.sh --audit` against **this** repository reports this
+pair as *configured but read by no workflow*:
 
 - **`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`** — these exist because
   Portainer sits behind Cloudflare Access, but **no workflow currently passes

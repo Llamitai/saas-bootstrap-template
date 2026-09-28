@@ -1,0 +1,55 @@
+---
+title: Estructura del repositorio
+description: Qué vive en cada carpeta del unirepo y dónde está la documentación de cada parte.
+icon: FolderTree
+---
+
+<Callout title="En resumen">
+  Un solo repositorio con tres aplicaciones (`backend/`, `frontend/`, `docs/`) y una capa de comandos `just`. Los agentes leen `AGENTS.md` y los skills versionados.
+</Callout>
+
+## Aplicaciones
+
+| App | Stack | Puerto | Carpeta |
+| --- | --- | --- | --- |
+| Backend | FastAPI, SQLAlchemy async, Alembic, PostgreSQL, Valkey, RabbitMQ, S3 (RustFS en local) | `8200` | [`backend/`](../../../../backend/README.md) |
+| Frontend | Next.js (App Router), React, Tailwind CSS v4, TanStack Query, zod | `3000` | [`frontend/`](../../../../frontend/README.md) |
+| Docs | React Router + Fumadocs | `4321` | [`docs/`](../../../README.md) |
+
+Las versiones exactas se leen de `backend/pyproject.toml`, `frontend/package.json` y `docs/package.json`.
+
+## Árbol
+
+```text
+backend/            API FastAPI, migraciones, seeds y tests
+frontend/           App Next.js, BFF y tests Vitest/Playwright
+docs/
+  content/docs/     Esta documentación (Markdown/MDX)
+  openapi/          Esquema OpenAPI exportado del backend
+openspec/           Changes OpenSpec en curso
+scripts/            Tooling del repositorio (checks, sync de skills, stack de tests)
+just/               Módulos de recetas: backend, frontend, docs
+.claude/skills/     Skills canónicos (fuente editable)
+.agents/skills/     Copia de los skills que leen Codex y OpenCode
+AGENTS.md           Mapa compartido para agentes
+PRODUCT.md          Estrategia de producto
+DESIGN.md           Identidad visual y reglas de diseño
+```
+
+## Comandos por área
+
+```bash
+just            # lista todo
+just backend    # recetas del backend
+just frontend   # recetas del frontend
+just docs       # recetas de este sitio
+```
+
+La [referencia de comandos](../referencia/comandos.mdx) explica qué hace cada receta y cuáles modifican archivos.
+
+## Dónde está cada documento
+
+- Arquitectura: [backend](../conceptos/arquitectura-backend.mdx) y [frontend](../conceptos/arquitectura-frontend.md).
+- Contratos y capacidades activas: [perfil del proyecto](../equipo/perfil-del-proyecto.md).
+- Qué comprobar antes de cerrar un cambio: [verificación](../equipo/verificacion.md).
+- Decisiones: [ADRs](../equipo/adr/index.md).

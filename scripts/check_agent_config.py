@@ -12,6 +12,70 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ('define-change', 'backend-change', 'frontend-change', 'schema-change', 'verify-change', 'review-change', 'validate-change')
+# Agent Skills spec fields plus the Claude Code extensions project skills may use.
+# Other clients ignore the extensions; unknown keys are rejected to catch typos.
+SKILL_KEYS = {
+    'name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools',
+    'disable-model-invocation', 'user-invocable', 'argument-hint', 'when_to_use',
+}
+MAX_DESCRIPTION = 1024
+MAX_SKILL_LINES = 500
+# Supporting content that is executed, templated or tested rather than read as guidance.
+NON_REFERENCE_DIRS = {'evals', 'tests', 'templates', 'assets', 'scripts', 'agents'}
+
+
+def frontmatter(content: str) -> tuple[dict[str, str], str] | None:
+    """Parse top-level scalar keys; folded/literal and indented values are joined."""
+    match = re.match(r'\A---\n(.*?)\n---(?:\n|$)', content, re.S)
+    if not match:
+        return None
+    fields: dict[str, list[str]] = {}
+    key = None
+    for line in match[1].splitlines():
+        top = re.match(r'([A-Za-z][\w-]*):\s*(.*)$', line)
+        if top:
+            key = top[1]
+            value = top[2].strip()
+            fields[key] = [] if value in {'>', '|', '>-', '|-'} else [value]
+        elif key and line.strip():
+            fields[key].append(line.strip())
+    values = {name: ' '.join(parts).strip('"\'') for name, parts in fields.items()}
+    return values, content[match.end():]
+
+
+def project_skill_errors(folder: Path, root: Path) -> list[str]:
+    """Check a maintained skill against the Agent Skills spec and invocation policy."""
+    path = folder / 'SKILL.md'
+    parsed = frontmatter(path.read_text())
+    if parsed is None:
+        return []
+    fields, body = parsed
+    label = path.relative_to(root)
+    errors = []
+    unknown = set(fields) - SKILL_KEYS
+    if unknown:
+        errors.append(f'{label}: unsupported frontmatter keys {sorted(unknown)}')
+    description = fields.get('description', '')
+    if len(description) > MAX_DESCRIPTION:
+        errors.append(f'{label}: description exceeds {MAX_DESCRIPTION} characters')
+    if re.search(r'<[^>]+>', description):
+        errors.append(f'{label}: description must not contain XML tags')
+    if body.count('\n') > MAX_SKILL_LINES:
+        errors.append(f'{label}: body exceeds {MAX_SKILL_LINES} lines; move detail to references')
+    for reference in sorted(folder.rglob('*.md')):
+        relative = reference.relative_to(folder)
+        if reference == path or NON_REFERENCE_DIRS & set(relative.parts[:-1]):
+            continue
+        if relative.as_posix() not in body:
+            errors.append(f'{label}: {relative.as_posix()} is not referenced directly from SKILL.md')
+    manual = fields.get('disable-model-invocation') == 'true'
+    codex = folder / 'agents/openai.yaml'
+    implicit = re.search(r'^\s*allow_implicit_invocation:\s*(\w+)', codex.read_text(), re.M) if codex.is_file() else None
+    if manual and not (implicit and implicit[1] == 'false'):
+        errors.append(f'{label}: manual-only skill needs policy.allow_implicit_invocation: false in agents/openai.yaml')
+    if implicit and implicit[1] == 'false' and not manual:
+        errors.append(f'{label}: Codex policy is manual-only but disable-model-invocation is not true')
+    return errors
 
 
 def local_links(path: Path, root: Path) -> list[str]:
@@ -56,27 +120,42 @@ def check(root: Path = ROOT) -> list[str]:
         folder = skills / name
         if not (folder / 'SKILL.md').is_file():
             errors.append(f'missing project skill: {name}')
+            continue
+        errors.extend(project_skill_errors(folder, root))
         for path in folder.rglob('*.md'):
             errors.extend(local_links(path, root))
-    for name in ('AGENTS.md', 'CLAUDE.md', 'docs/internal/project-profile.md', 'docs/internal/verification.md'):
+    for name in ('AGENTS.md', 'docs/content/docs/equipo/perfil-del-proyecto.md', 'docs/content/docs/equipo/verificacion.md'):
         path = root / name
         if not path.is_file():
             errors.append(f'missing instruction source: {name}')
         else:
             errors.extend(local_links(path, root))
-    claude = root / 'CLAUDE.md'
-    if claude.exists() and '@AGENTS.md' not in claude.read_text().splitlines():
-        errors.append('CLAUDE.md must import @AGENTS.md')
+    # Agents read the rendered docs tree directly: links must resolve and every page needs a title.
+    content = root / 'docs/content/docs'
+    for path in sorted([*content.rglob('*.md'), *content.rglob('*.mdx')]):
+        front = re.match(r'\A---\n(.*?)\n---(?:\n|$)', path.read_text(), re.S)
+        if not front or not re.search(r'^title:\s*\S', front[1], re.M):
+            errors.append(f'{path.relative_to(root)}: docs page needs frontmatter title')
+        errors.extend(local_links(path, root))
+    # Claude Code, Codex and OpenCode all read AGENTS.md natively. Claude prefers a
+    # CLAUDE.md in the same directory, so any CLAUDE.md would fork the instructions.
+    for nested in sorted(root.glob('*/AGENTS.md')):
+        errors.extend(local_links(nested, root))
+    for claude in sorted([root / 'CLAUDE.md', *root.glob('*/CLAUDE.md')]):
+        if claude.is_file():
+            errors.append(f'{claude.relative_to(root)}: AGENTS.md is the single instruction file; remove CLAUDE.md')
     native_names = set(inventory['targets'].get('.agents/skills', []))
-    compatibility_names = set(inventory['targets'].get('.codex/skills', []))
-    duplicates = native_names & compatibility_names & set(project_skills)
-    if duplicates:
-        errors.append(f'Codex discovers duplicate project skills across .agents and .codex: {sorted(duplicates)}')
+    # Codex reads .agents/skills and .codex/skills; OpenCode reads .agents, .claude and
+    # .opencode skills. A second copy root only duplicates names in their listings.
+    for target in set(inventory['targets']) - {'.agents/skills'}:
+        errors.append(f'{target}: only .agents/skills is a distribution target; Codex and OpenCode both read it')
+    for duplicate_root in ('.codex/skills', '.opencode/skills'):
+        if (root / duplicate_root).exists():
+            errors.append(f'{duplicate_root}: duplicates .agents/skills for Codex/OpenCode; remove it')
     if 'project_skills' in inventory and set(project_skills) - native_names:
         errors.append('project skills must be distributed to the native .agents/skills root')
     for target, names in inventory['targets'].items():
-        effective_names = set(names) | (native_names if target == '.codex/skills' else set())
-        if set(WORKFLOWS) - effective_names:
+        if set(WORKFLOWS) - set(names):
             errors.append(f'{target}: required workflows absent from inventory')
         for name in set(names) & set(project_skills):
             for path in (root / target / name).rglob('*.md'):
@@ -89,6 +168,10 @@ def check(root: Path = ROOT) -> list[str]:
             errors.append(f'{name}: private path/trust state is not portable')
         if name == '.codex/config.toml' and set(config) & {'project', 'agent', 'rules'}:
             errors.append(f'{name}: unsupported project instruction/discovery fields; use native discovery')
+        if name == '.opencode/opencode.json' and any(
+            Path(item).as_posix().lstrip('./') == 'AGENTS.md' for item in config.get('instructions', [])
+        ):
+            errors.append(f'{name}: OpenCode already loads the root AGENTS.md; remove it from instructions')
     return errors
 
 

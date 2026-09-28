@@ -1,9 +1,9 @@
 from uuid import UUID
 
 from fastapi import Depends, status
-from pydantic import BaseModel
 
 from src.common.domain.contexts.domain import DomainContext
+from src.common.domain.entities.common.requests import CamelCaseRequest
 from src.common.domain.entities.common.task_result import TaskResult
 from src.common.domain.enums.tenants import TenantRoleStatus
 from src.common.domain.models.tenants.tenant_user import TenantUser
@@ -36,7 +36,7 @@ async def get_tenant_role(
     )
 
 
-class UpdateTenantRole(BaseModel):
+class UpdateTenantRole(CamelCaseRequest):
     name: str | None = None
     permissions: list[str] | None = None
     status: TenantRoleStatus | None = None

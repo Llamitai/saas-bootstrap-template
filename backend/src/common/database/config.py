@@ -26,7 +26,6 @@ class DatabaseConfig:
             echo_pool=False,  # Set to True to debug connection pool issues
         )
         self.session_maker = async_sessionmaker(
-            autocommit=False,
             autoflush=False,
             bind=self.engine,
             class_=AsyncSession,

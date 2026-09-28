@@ -15,8 +15,12 @@ just frontend dev              # dev server (:3000)
 just frontend build            # build de producción
 just frontend install          # instalar dependencias (pnpm)
 just frontend test             # unit tests (vitest)
-just frontend lint             # Biome
+just frontend check            # estático sin autofix: tsc + Biome check + límites de import
+just frontend verify           # check estático + vitest + build
+just frontend lint             # Biome con autofix seguro (modifica archivos)
+just frontend format           # Biome format --write (modifica archivos)
 just frontend e2e              # Playwright · e2e-ui / e2e-headed / e2e-spec <spec>
+just frontend new-feature <n>  # crea el esqueleto de un feature
 ```
 `just frontend` lista todo.
 
@@ -36,8 +40,10 @@ just frontend e2e              # Playwright · e2e-ui / e2e-headed / e2e-spec <s
 - `app/` — App Router: grupos `(protected)`/`(public)` y **rutas BFF** `api/**/route.ts`.
 - `features/` — slices por flujo: app-shell, auth, tenants, members, roles, settings, profile y superuser.
 - `entities/` — entidades compartidas entre features.
-- `shared/` — UI base, HTTP, config, providers y helpers reutilizables.
+- `shared/` — UI base, HTTP, config, providers, catálogos y helpers genéricos (sin dominio ni stores).
 
 ## Docs profundas
-En [`../docs/internal/architecture/frontend-architecture.md`](../docs/internal/architecture/frontend-architecture.md):
-arquitectura frontend canónica.
+- [Arquitectura frontend](../docs/content/docs/conceptos/arquitectura-frontend.md):
+  contrato vigente (estructura, límites, HTTP/BFF, caché, testing, deuda conocida).
+- [Roadmap frontend](../docs/content/docs/conceptos/roadmap-frontend.md):
+  ideas objetivo que aún no son contrato.

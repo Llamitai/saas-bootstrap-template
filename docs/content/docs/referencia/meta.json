@@ -1,0 +1,7 @@
+{
+  "title": "Referencia",
+  "description": "API, comandos y contratos",
+  "icon": "Braces",
+  "root": true,
+  "pages": ["index", "comandos", "miembros-e-invitaciones", "---API REST---", "...api"]
+}

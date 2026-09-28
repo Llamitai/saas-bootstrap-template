@@ -1,26 +1,36 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 import { SessionSync, StoreInitializer } from "@/features/app-shell";
-import { refreshBackendSession } from "@/features/auth/server";
-import { COOKIE_REFRESH_TOKEN } from "@/src/constants";
+import { getBackendSession, isSessionRejected } from "@/features/auth/server";
+import { backendHeadersFrom } from "@/shared/http/bff";
+import { COOKIE_ACCESS_TOKEN } from "@/src/constants";
 
 export const dynamic = "force-dynamic";
 
-async function refreshServerSession() {
+// Server Components cannot write cookies, so this layout never rotates the
+// refresh token: src/proxy.ts rotates it when the access cookie is missing or
+// expired and forwards the new cookies to this render.
+async function readServerSession() {
   const cookieStore = await cookies();
-  const refreshToken = cookieStore.get(COOKIE_REFRESH_TOKEN)?.value;
+  const accessToken = cookieStore.get(COOKIE_ACCESS_TOKEN)?.value;
 
-  if (!refreshToken) {
+  if (!accessToken) {
     return null;
   }
 
-  const result = await refreshBackendSession(refreshToken);
+  const result = await getBackendSession(
+    accessToken,
+    backendHeadersFrom({ headers: await headers() })
+  );
   if (!result.ok) {
-    return null;
+    if (isSessionRejected(result)) return null;
+    // Transient backend failure: fail this render (error page, cookies kept)
+    // instead of redirecting to login, which would count as a session loss.
+    throw new Error(`Session read failed with status ${result.status}`);
   }
 
-  return result.body.data;
+  return { ...result.body.data, accessToken };
 }
 
 interface ProtectedLayoutProps {
@@ -30,7 +40,7 @@ interface ProtectedLayoutProps {
 export default async function ProtectedLayout({
   children,
 }: ProtectedLayoutProps) {
-  const session = await refreshServerSession();
+  const session = await readServerSession();
 
   if (!session) {
     redirect("/");
@@ -52,7 +62,7 @@ export default async function ProtectedLayout({
           tenant: session.tenant,
           tenantRole: session.tenantRole,
         }}
-        accessToken={session.session.accessToken}
+        accessToken={session.accessToken}
       />
       <StoreInitializer />
       {children}

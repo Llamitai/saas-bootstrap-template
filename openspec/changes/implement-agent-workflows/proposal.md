@@ -1,7 +1,7 @@
 ## Why
 
-El plan aprobado `docs/arch_plan.md` identifica gates incompletos y conocimiento
-contradictorio entre clientes. Su implementación debe permitir definir, construir,
+El plan aprobado (ya implementado y retirado del repositorio) identificaba gates
+incompletos y conocimiento contradictorio entre clientes. Su implementación debe permitir definir, construir,
 refinar, verificar y validar cambios del unirepo con evidencia reproducible.
 
 ## What Changes

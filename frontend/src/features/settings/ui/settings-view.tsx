@@ -304,9 +304,9 @@ export function SettingsView({ initialTab = "general" }: SettingsViewProps) {
                   description={
                     <>
                       {t("maxPages.description")}{" "}
-                      <a href="#" className="text-primary hover:underline">
+                      <span className="font-medium text-foreground">
                         {t("maxPages.descriptionLink")}
-                      </a>{" "}
+                      </span>{" "}
                       {t("maxPages.descriptionTail")}
                     </>
                   }

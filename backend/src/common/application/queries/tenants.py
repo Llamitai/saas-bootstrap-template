@@ -30,8 +30,3 @@ class GetTenantUserQuery(Query):
 @dataclass
 class GetTenantRoleByIdQuery(Query):
     tenant_role_id: UUID
-
-
-@dataclass
-class RemoveTenantByIdQuery(Query):
-    tenant_id: UUID

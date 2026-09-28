@@ -1,5 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
+from src.auth.presentation.schemas import TenantUserSessionResponse
+from src.common.presentation.schemas.envelopes import (
+    AcceptedResponse,
+    EmailResponse,
+    Envelope,
+    PageEnvelope,
+    PermissionResponse,
+    TaskResultResponse,
+)
+from src.common.presentation.schemas.shared import TenantModel
 from src.tenants.presentation.endpoints.invitations import (
     accept_invitation,
     get_invitation_by_token,
@@ -33,6 +43,17 @@ from src.tenants.presentation.endpoints.tenant_user import (
 from src.tenants.presentation.endpoints.tenant_user_stats import get_tenant_user_stats
 from src.tenants.presentation.endpoints.tenant_users import get_tenant_users
 from src.tenants.presentation.endpoints.tenants import register_tenant, update_tenant
+from src.tenants.presentation.schemas import (
+    BootstrappedRolesResponse,
+    CreatedInvitationsResponse,
+    InvitationViewResponse,
+    OnboardedTenantResponse,
+    TenantRoleResponse,
+    TenantSettingsResponse,
+    TenantUserInvitationResponse,
+    TenantUserResponse,
+    TenantUserStatsModel,
+)
 
 tenant_router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -41,12 +62,16 @@ tenant_router.add_api_route(
     register_tenant,
     methods=["POST"],
     summary="Register a new Tenant",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Envelope[TenantModel],
 )
 tenant_router.add_api_route(
     "/onboard",
     onboard_tenant,
     methods=["POST"],
     summary="Onboard a new Tenant (superuser): tenant + roles + invitations + emails",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Envelope[OnboardedTenantResponse],
 )
 
 tenant_router.add_api_route(
@@ -54,30 +79,39 @@ tenant_router.add_api_route(
     update_tenant,
     methods=["PUT"],
     summary="Update Tenant",
+    response_model=Envelope[TenantModel],
 )
+
+
 tenant_router.add_api_route(
     "/{tenant_id}",
     soft_delete_tenant,
     methods=["DELETE"],
     summary="Soft-Delete Tenant",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Envelope[AcceptedResponse],
 )
 tenant_router.add_api_route(
     "/{tenant_id}/settings",
     get_tenant_settings,
     methods=["GET"],
     summary="Get Tenant Settings",
+    response_model=Envelope[TenantSettingsResponse],
 )
+
 tenant_router.add_api_route(
     "/{tenant_id}/settings",
     update_tenant_settings,
     methods=["PATCH"],
     summary="Update Tenant Name",
+    response_model=Envelope[TenantSettingsResponse],
 )
 tenant_router.add_api_route(
     "/{tenant_id}/settings/avatar",
     update_tenant_avatar,
     methods=["POST"],
     summary="Update Tenant Avatar",
+    response_model=Envelope[TenantSettingsResponse],
 )
 
 tenant_router.add_api_route(
@@ -85,7 +119,7 @@ tenant_router.add_api_route(
     get_missing_permissions,
     methods=["POST"],
     summary="Get Missing Permissions",
-    response_model=list[str],
+    response_model=Envelope[list[PermissionResponse]],
 )
 #
 # ~ USERS
@@ -95,60 +129,71 @@ tenant_router.add_api_route(
     get_tenant_user_stats,
     methods=["GET"],
     summary="Get Tenant User Stats",
+    response_model=Envelope[TenantUserStatsModel],
 )
 tenant_router.add_api_route(
     "/users",
     get_tenant_users,
     methods=["GET"],
     summary="Get Tenant Users",
+    response_model=PageEnvelope[TenantUserResponse],
 )
 tenant_router.add_api_route(
     "/invitations",
     create_tenant_invitations,
     methods=["POST"],
     summary="Invite members to the current tenant",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Envelope[CreatedInvitationsResponse],
 )
 tenant_router.add_api_route(
     "/invitations",
     list_tenant_invitations,
     methods=["GET"],
     summary="List pending invitations for the current tenant",
+    response_model=Envelope[list[TenantUserInvitationResponse]],
 )
 tenant_router.add_api_route(
     "/invitations/{invitation_id}",
     cancel_tenant_invitation,
     methods=["DELETE"],
     summary="Cancel a pending invitation (sets it to EXPIRED)",
+    response_model=Envelope[TenantUserInvitationResponse],
 )
 tenant_router.add_api_route(
     "/users/{tenant_user_id}",
     get_tenant_user,
     methods=["GET"],
     summary="Retrieve Tenant User Detail",
+    response_model=Envelope[TenantUserResponse],
 )
 tenant_router.add_api_route(
     "/users/{tenant_user_id}/send-password-reset",
     send_member_password_reset,
     methods=["POST"],
     summary="Email a password-reset link to a tenant member",
+    response_model=Envelope[EmailResponse],
 )
 tenant_router.add_api_route(
     "/users/{tenant_user_id}/photo",
     update_member_photo,
     methods=["POST"],
     summary="Upload a profile photo for a tenant member",
+    response_model=Envelope[TenantUserResponse],
 )
 tenant_router.add_api_route(
     "/users/{tenant_user_id}",
     update_tenant_user,
     methods=["PUT"],
     summary="Update Tenant User",
+    response_model=Envelope[TenantUserResponse],
 )
 tenant_router.add_api_route(
     "/users/{tenant_user_id}",
     delete_tenant_user,
     methods=["DELETE"],
     summary="Remove Tenant User",
+    response_model=Envelope[TaskResultResponse],
 )
 #
 # ~ ROLES
@@ -158,36 +203,43 @@ tenant_router.add_api_route(
     get_tenant_roles,
     methods=["GET"],
     summary="Get Tenant Roles",
+    response_model=PageEnvelope[TenantRoleResponse],
 )
 tenant_router.add_api_route(
     "/roles",
     create_tenant_role,
     methods=["POST"],
     summary="Create Tenant Role",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Envelope[TenantRoleResponse],
 )
 tenant_router.add_api_route(
     "/roles/bootstrap",
     bootstrap_tenant_roles,
     methods=["POST"],
     summary="Bootstrap Default Tenant Roles",
+    response_model=Envelope[BootstrappedRolesResponse],
 )
 tenant_router.add_api_route(
     "/roles/{role_id}",
     get_tenant_role,
     methods=["GET"],
     summary="Get Tenant Role Detail",
+    response_model=Envelope[TenantRoleResponse],
 )
 tenant_router.add_api_route(
     "/roles/{role_id}",
     update_tenant_role,
     methods=["PUT"],
     summary="Update Tenant Role",
+    response_model=Envelope[TenantRoleResponse],
 )
 tenant_router.add_api_route(
     "/roles/{role_id}",
     delete_tenant_role,
     methods=["DELETE"],
     summary="Delete Tenant Role",
+    response_model=Envelope[TaskResultResponse],
 )
 
 
@@ -201,10 +253,12 @@ invitations_router.add_api_route(
     get_invitation_by_token,
     methods=["GET"],
     summary="Lookup a pending invitation by token (public)",
+    response_model=Envelope[InvitationViewResponse],
 )
 invitations_router.add_api_route(
     "/{token}/accept",
     accept_invitation,
     methods=["POST"],
     summary="Accept an invitation (single-use). Sets password + returns session.",
+    response_model=Envelope[TenantUserSessionResponse],
 )

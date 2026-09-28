@@ -10,9 +10,9 @@ internal admin console.
 
 | App | Stack | Default port | Path |
 |:---|:---|:---:|:---|
-| Backend | FastAPI · Python 3.13 · PostgreSQL · Redis · MinIO · Mailpit · Directus | `8200` | [`backend/`](backend/) |
+| Backend | FastAPI · Python 3.14 · PostgreSQL · Valkey · RabbitMQ · RustFS (S3) · Mailpit · Directus | `8200` | [`backend/`](backend/) |
 | Frontend | Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/Base UI | `3000` | [`frontend/`](frontend/) |
-| Docs | React Router 7 + Fumadocs internal documentation site | `4321` | [`docs/`](docs/) |
+| Docs | React Router + Fumadocs documentation site (guides, concepts, generated API reference) | `4321` | [`docs/`](docs/) |
 
 ## Core Surface
 
@@ -32,11 +32,11 @@ internal admin console.
 [[ project_slug ]]/
   backend/        FastAPI API and backend services
   frontend/       Next.js app
-  docs/           Current boilerplate documentation
-  .codex/         Codex project config and skills
-  .claude/        Claude Code project config and skills
-  .opencode/      OpenCode project config and skills
-  .agents/        Shared agent skills
+  docs/           Documentation site; content in docs/content/docs
+  .codex/         Codex project config (optional MCP servers)
+  .claude/        Claude Code config and canonical skills
+  .opencode/      OpenCode config and commands
+  .agents/        Skill copies read by Codex and OpenCode
   just/           just command modules
   justfile        top-level development commands
 ```
@@ -72,14 +72,9 @@ Codex, Claude Code, and OpenCode.
   (`lefthook install`).
 
 The repository keeps every runtime, container, CI, engine, and `@types/node`
-pin on the latest Node.js major that has officially entered LTS. A scheduled
-workflow proposes future LTS migrations as reviewable pull requests; it never
-merges them automatically and never selects a Current release.
-
-Repositories created from the Copier template must enable **Allow GitHub
-Actions to create and approve pull requests** under **Settings → Actions →
-General → Workflow permissions**. The automation only creates the migration
-PR; normal review and branch protection still apply.
+pin on one Node.js LTS major; the `Node LTS policy` CI check rejects drift. To
+move to a newer LTS, run `python3 scripts/node_lts_policy.py latest` and then
+`python3 scripts/node_lts_policy.py update <major>`, and open a normal PR.
 
 ### Steps
 
@@ -92,14 +87,14 @@ PR; normal review and branch protection still apply.
    ```
 
 3. Start the backend stack — docker compose brings up the API plus Postgres,
-   Redis, MinIO, Mailpit, and Directus:
+   Valkey, RabbitMQ with its worker, RustFS (S3-compatible storage), Mailpit, and Directus:
 
    ```bash
    just backend dev
    ```
 
 4. In another terminal, apply migrations, seed demo data, and create the
-   MinIO bucket (in that order):
+   S3 bucket (in that order):
 
    ```bash
    just backend migrate
@@ -160,10 +155,10 @@ the mirror by hand.
 
 ```bash
 just                 # list commands
-just backend dev     # backend stack: API + Postgres + Redis + MinIO + Mailpit + Directus
+just backend dev     # backend stack: API + worker + Postgres + Valkey + RabbitMQ + RustFS + Mailpit + Directus
 just frontend dev    # Next.js dev server
-just docs dev        # React Router 7 + Fumadocs docs site
-just stop-all        # stop local stacks
+just docs dev        # documentation site (React Router + Fumadocs)
+just backend stop    # stop the backend stack
 ```
 
 Commands are grouped by area:
@@ -195,8 +190,10 @@ just backend migrate
 - Browser code calls the backend only through same-origin Next.js BFF routes
   under `/api/...`.
 
-See [`docs/internal/architecture/frontend-architecture.md`](docs/internal/architecture/frontend-architecture.md)
-for the frontend source of truth.
+See [`docs/content/docs/conceptos/arquitectura-frontend.md`](docs/content/docs/conceptos/arquitectura-frontend.md)
+for the frontend source of truth. The documentation site (`just docs dev`) groups
+everything by need: getting started, guides, concepts, reference (including the
+API reference generated from OpenAPI) and the team contract.
 
 ## License
 

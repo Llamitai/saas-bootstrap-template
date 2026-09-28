@@ -1,10 +1,14 @@
 version: 2
+# Version updates run on the 1st and 15th of each month (about every two weeks;
+# Dependabot has no native biweekly interval). Security updates stay immediate.
 updates:
   # Backend Python dependencies (uv.lock)
   - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
@@ -12,13 +16,18 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
   # Root workspace tooling
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
@@ -26,13 +35,18 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
   # Frontend (Next.js app)
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
@@ -44,13 +58,18 @@ updates:
       # Major upgrades are proposed only after the runtime enters LTS.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
   # Docs site
   - package-ecosystem: "npm"
     directory: "/docs"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
@@ -62,23 +81,36 @@ updates:
       # Major upgrades are proposed only after the runtime enters LTS.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
-  # Docker base images
+  # Docker base images (tags and digests): backend/Dockerfile and
+  # backend/docker/Dockerfile.test
   - package-ecosystem: "docker"
-    directory: "/backend"
+    directories:
+      - "/backend"
+      - "/backend/docker"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
       default-days: 7
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
@@ -87,15 +119,45 @@ updates:
       # Major upgrades are proposed only after the runtime enters LTS.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
-  # GitHub Actions workflows
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  # Images referenced by the Compose stacks (local dev, test and deploy)
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/backend"
+      - "/frontend"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
     # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
     # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
     cooldown:
       default-days: 7
+    ignore:
+      # A PostgreSQL major needs a data migration (pg_upgrade/dump); do it by hand.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 5
+
+  # GitHub Actions workflows (SHA pins keep their version comment updated)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 1,15 * *"
+      timezone: "America/Mexico_City"
+    # Solo entrega versiones ya "asentadas": retrasa las PRs programadas
+    # (no las de seguridad, que van por Dependabot alerts y siguen inmediatas).
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5

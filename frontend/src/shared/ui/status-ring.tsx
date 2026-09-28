@@ -93,7 +93,7 @@ function ProgressArc({
     <svg
       width={RING_SIZE}
       height={RING_SIZE}
-      aria-hidden
+      aria-hidden="true"
       className="-rotate-90"
     >
       <circle

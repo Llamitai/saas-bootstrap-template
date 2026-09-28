@@ -1,6 +1,8 @@
 # PostgreSQL provisioning reference
 
-Targets PostgreSQL 15, 16 and 17. `scripts/provision_db.py` implements all of
+Contents: [The standard recipe, corrected](#the-standard-recipe-corrected) · [Idempotency](#idempotency) · [Safe invocation](#safe-invocation) · [Password generation](#password-generation) · [Verification](#verification) · [Rollback](#rollback) · [This project's two databases](#this-projects-two-databases)
+
+Targets PostgreSQL 15, 16 and 17. `<skill-dir>/scripts/provision_db.py` implements all of
 this; read here when you want to run it by hand or understand why a step
 exists.
 

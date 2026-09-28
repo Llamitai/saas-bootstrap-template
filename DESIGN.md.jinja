@@ -20,13 +20,13 @@ colors:
   destructive: "oklch(0.579 0.214 27.166)"
 typography:
   display:
-    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.875rem"
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: "normal"
   body:
-    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
@@ -50,6 +50,28 @@ app shell.
 - Do not use decorative gradient blobs, glassmorphism, oversized heroes or generic SaaS illustration.
 - Keep text sizes proportional to the container; dashboards and settings screens need compact headings.
 
+## Tokens and themes
+
+- Live tokens are in `frontend/src/app/globals.css`: raw palette variables
+  (`--md3-*`) in `:root`, redefined under `.dark`, mapped to semantic Tailwind
+  tokens in `@theme inline`. Values in the front matter are the light theme.
+- Dark mode is class-based (`next-themes`, `attribute="class"`,
+  `defaultTheme="system"`). Every new surface must read correctly in both themes;
+  never hardcode a light-only color.
+- Components consume semantic tokens (`bg-background`, `bg-primary`,
+  `text-foreground`, `text-muted-foreground`, `border-border`,
+  `text-destructive`), not `--md3-*` variables. Direct `--md3-*` use is limited
+  to a few `shared/ui` primitives that have no semantic token yet (info, field
+  indicator, shell background); do not extend it to feature code.
+
+## Typography
+
+Geist is the intended face, but no font file is loaded yet (no `next/font`, no
+`@font-face`). The rendered stack is `--font-sans`: Geist or Inter only when
+installed locally, otherwise `ui-sans-serif`/`system-ui`. Loading Geist is
+pending; until then, do not tune layouts to Geist-specific metrics. Material
+Symbols Rounded is loaded from Google Fonts for icons.
+
 ## Components
 
 - Navigation: icon + label rows, clear active state, tenant context visible.
@@ -62,3 +84,8 @@ app shell.
 
 Target WCAG 2.1 AA. Preserve keyboard access, visible focus rings, semantic labels,
 touch targets, reduced-motion alternatives and readable contrast.
+
+Known debt: the root `viewport` in `frontend/src/app/layout.tsx` sets
+`maximumScale: 1`, which blocks pinch zoom on some mobile browsers and conflicts
+with WCAG 1.4.4 (Resize Text). Removing it needs its own change with a mobile
+check.

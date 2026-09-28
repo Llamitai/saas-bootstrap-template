@@ -7,7 +7,7 @@ import { useSessionActions } from "@/features/auth";
 interface SessionSyncProps {
   session: TenantUserContext;
   /**
-   * Fresh access token from the server-side refresh. Without it, sibling
+   * Access token the protected layout read the session with. Without it, sibling
    * components fire their first requests against an empty token in the
    * store and get 401/403'd until the response interceptor refreshes again.
    */

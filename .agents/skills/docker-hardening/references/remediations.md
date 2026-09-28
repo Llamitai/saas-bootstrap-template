@@ -2,6 +2,24 @@
 
 Paste-ready fixes for every FAIL found in the audit. Pick the variant that matches the project's base image and package manager. Adapt names and versions to the project.
 
+Contents:
+
+- Image controls: [4.1 non-root](#cis-41--non-root-user) ·
+  [4.2 trusted base](#cis-42--trusted-base-image) ·
+  [4.3 minimal packages](#cis-43--minimal-packages) ·
+  [4.4 scan + rebuild](#cis-44--scan--rebuild-in-ci) ·
+  [4.6 HEALTHCHECK](#cis-46--healthcheck) ·
+  [4.7 update + install](#cis-47--update--install-in-one-layer) ·
+  [4.9 COPY over ADD](#cis-49--copy-over-add) ·
+  [4.10 BuildKit secrets](#cis-410--buildkit-secrets) ·
+  [4.11 verified packages](#cis-411--verified-packages)
+- Runtime controls: [5.7 no sshd](#cis-57--no-sshd) ·
+  [5.9 ports](#cis-59--only-necessary-ports) ·
+  [5.28 digest pinning](#cis-528--pin-image-versions-by-digest)
+- [Compose runtime hardening B1–B12](#runtime-hardening--compose-snippets)
+- [Full hardened skeleton](#full-hardened-skeleton-multi-stage-language-agnostic-shape)
+- [Language-specific tips](#language-specific-tips-notes-for-adapting-the-skeleton)
+
 ---
 
 ## CIS 4.1 — Non-root user
@@ -52,7 +70,10 @@ Sources, in order of preference:
 1. Internal mirror you control (`registry.company.com/library/...`)
 2. Docker Official Images
 3. Verified Publisher
-4. Distroless (`gcr.io/distroless/...`)
+4. Low-CVE hardened images: Docker Hardened Images (`dhi.io/<image>:<tag>`,
+   free Community tier under Apache 2.0, requires `docker login dhi.io` with a
+   Docker account), distroless (`gcr.io/distroless/...`), Chainguard/Wolfi —
+   always pinned by digest
 5. Anything else → MANUAL (justify with a comment in the report)
 
 ---
@@ -85,21 +106,35 @@ Prefer **distroless** or **alpine** over a full distro when the runtime allows. 
 
 ## CIS 4.4 — Scan + rebuild in CI
 
+> **Pin CI scanners.** Reference third-party GitHub Actions by full commit SHA
+> (tags and branches are mutable) and scanner images by version + digest. In
+> March 2026 attackers hijacked `aquasecurity/trivy-action` / `setup-trivy`
+> tags and published malicious Trivy v0.69.4 binaries/images plus Docker Hub
+> images `0.69.5`/`0.69.6`; references pinned to a safe commit SHA or image
+> digest were not affected
+> ([GHSA-69fq-xp46-6x23 / CVE-2026-33634](https://github.com/advisories/GHSA-69fq-xp46-6x23)).
+> The SHAs below were resolved from the release tags shown in the comment;
+> re-resolve them with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>`
+> (dereference annotated tags) before bumping, and let Dependabot
+> (`github-actions` ecosystem) keep them current.
+
 ### GitHub Actions — Trivy
 ```yaml
 - name: Scan image
-  uses: aquasecurity/trivy-action@master
+  uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
   with:
     image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
     severity: HIGH,CRITICAL
     exit-code: '1'
     ignore-unfixed: true
+    # The action installs Trivy itself; keep this explicit and never `latest`.
+    version: 'v0.70.0'
 ```
 
 ### GitHub Actions — Docker Scout
 ```yaml
 - name: Scan image
-  uses: docker/scout-action@v1
+  uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
   with:
     command: cves
     image: ghcr.io/${{ github.repository }}:${{ github.sha }}
@@ -110,14 +145,17 @@ Prefer **distroless** or **alpine** over a full distro when the runtime allows. 
 ### GitLab CI — Trivy
 ```yaml
 container_scan:
-  image: aquasec/trivy:latest
+  # Pin version + digest; resolve the digest with
+  # `docker buildx imagetools inspect aquasec/trivy:<version>` and replace <digest>.
+  image: aquasec/trivy:<version>@sha256:<digest>
   script:
     - trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed $IMAGE_TAG
 ```
 
 ### Local one-shot
 ```bash
-docker scout cves --exit-code 1 --only-severity high,critical <image>
+# `--exit-code` is a boolean flag: exit status 2 when vulnerabilities are found.
+docker scout cves --exit-code --only-severity critical,high <image>
 # or
 trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed <image>
 ```
@@ -316,6 +354,10 @@ Never `docker run -P` / `--publish-all` in scripts or Makefiles.
 ---
 
 ## CIS 5.28 — Pin image versions by digest
+
+CIS 5.28 (docker-bench numbering) asks for proper version pinning instead of
+relying on cached `latest`; requiring a `@sha256:` digest is this skill's
+stricter project extension.
 
 ```dockerfile
 FROM python:3.12-slim-bookworm@sha256:<digest>

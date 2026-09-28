@@ -1,0 +1,7 @@
+interface:
+  display_name: "Deploy MVP"
+  short_description: "First production deployment on Portainer, Infisical and GHCR"
+  default_prompt: "Use $deploy-mvp to run the first production deployment of this project, confirming each infrastructure mutation with me."
+
+policy:
+  allow_implicit_invocation: false

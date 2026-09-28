@@ -3,9 +3,8 @@ from uuid import UUID
 from fastapi import Depends, status
 from pydantic import Field
 
-from src.common.domain.entities.common.requests import CamelCaseRequest
+from src.common.domain.entities.common.requests import CamelCaseRequest, PhoneNumberRequest
 from src.common.domain.entities.common.task_result import TaskResult
-from src.common.domain.entities.phone_number import RawPhoneNumber
 from src.common.domain.enums.users import TenantUserStatus
 from src.common.domain.models.tenants.tenant_user import TenantUser
 from src.common.domain.permissions.checker import check_tenant_permission
@@ -48,7 +47,7 @@ class UpdateTenantUserRequest(CamelCaseRequest):
     is_owner: bool | None = Field(default=None)
     is_support: bool | None = Field(default=None)
     email: str | None = Field(default=None)
-    phone_number: RawPhoneNumber | None = Field(default=None)
+    phone_number: PhoneNumberRequest | None = Field(default=None)
 
 
 async def update_tenant_user(

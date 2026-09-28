@@ -33,7 +33,13 @@
   "AppShell": {
     "help": "Ayuda",
     "breadcrumbsLabel": "Ruta de navegación",
-    "breadcrumbsOverflow": "Mostrar niveles intermedios"
+    "breadcrumbsOverflow": "Mostrar niveles intermedios",
+    "superuserActions": "Acciones de superusuario",
+    "superuser": "Superusuario",
+    "registerTenant": "Registrar Tenant",
+    "switchTenant": "Cambiar Tenant",
+    "loadingTenants": "Cargando tenants...",
+    "currentTenant": "Actual"
   },
   "NavUser": {
     "profile": "Mi perfil",
@@ -241,7 +247,10 @@
     "selectPermissions": "Seleccionar permisos",
     "cancel": "Cancelar",
     "create": "Crear rol",
-    "save": "Guardar cambios"
+    "save": "Guardar cambios",
+    "searchPermissions": "Buscar permisos...",
+    "selectedCount": "{count, plural, one {# permiso seleccionado} other {# permisos seleccionados}}",
+    "done": "Listo"
   },
   "MemberItem": {
     "noName": "Sin nombre",
@@ -315,7 +324,11 @@
     "passwordsDontMatch": "Las contraseñas no coinciden",
     "passwordSuccess": "Contraseña actualizada correctamente",
     "changePassword": "Cambiar contraseña",
-    "changing": "Cambiando..."
+    "changing": "Cambiando...",
+    "loadError": "No pudimos cargar tu perfil.",
+    "retry": "Reintentar",
+    "saveError": "No pudimos actualizar tu perfil.",
+    "passwordError": "No pudimos cambiar tu contraseña."
   },
   "InviteUserDialog": {
     "title": "Invitar usuario",
@@ -409,5 +422,39 @@
   "Metadata": {
     "title": "[[ project_name ]] - Plantilla multi-tenant",
     "description": "Autenticación, tenants y roles listos para extender."
+  },
+  "PageTitles": {
+    "members": "Miembros",
+    "roles": "Roles",
+    "settings": "Configuración",
+    "profile": "Mi perfil",
+    "forbidden": "Acceso denegado",
+    "register": "Crear Cuenta",
+    "resetPassword": "Recuperar Contraseña"
+  },
+  "HttpErrors": {
+    "BAD_REQUEST": "La solicitud no es válida.",
+    "UNAUTHORIZED": "Tu sesión expiró. Vuelve a iniciar sesión.",
+    "FORBIDDEN": "No tienes permiso para esta acción.",
+    "NOT_FOUND": "No encontramos lo que buscabas.",
+    "CONFLICT": "Los datos entran en conflicto con otro cambio.",
+    "VALIDATION_ERROR": "Revisa los datos ingresados.",
+    "RATE_LIMIT": "Demasiadas solicitudes. Intenta de nuevo en un momento.",
+    "INTERNAL_SERVER_ERROR": "El servidor tuvo un error. Intenta de nuevo.",
+    "BAD_GATEWAY": "El servicio no respondió correctamente. Intenta de nuevo.",
+    "SERVICE_UNAVAILABLE": "El servicio no está disponible. Intenta más tarde.",
+    "GATEWAY_TIMEOUT": "El servicio tardó demasiado. Intenta de nuevo.",
+    "SERVER_ERROR": "El servidor tuvo un error. Intenta de nuevo.",
+    "CLIENT_ERROR": "No se pudo completar la solicitud.",
+    "NETWORK_ERROR": "No hay conexión con el servidor.",
+    "UNKNOWN_ERROR": "Ocurrió un error inesperado.",
+    "client_ServerError": "Ocurrió un error inesperado.",
+    "bff_upstream_error": "El servicio backend devolvió un error.",
+    "bff_upstream_unreachable": "No se pudo contactar al servicio. Intenta de nuevo."
+  },
+  "ServiceUnavailable": {
+    "title": "Servicio no disponible por un momento",
+    "description": "Tu sesión sigue activa. Reintentaremos automáticamente en unos segundos.",
+    "retry": "Reintentar ahora"
   }
 }

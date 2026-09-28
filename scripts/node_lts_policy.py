@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 SCHEDULE_URL = "https://raw.githubusercontent.com/nodejs/Release/main/schedule.json"
-DYNAMIC_WORKFLOW = Path(".github/workflows/node-lts.yml")
 COMMON_STATIC_WORKFLOWS = (Path(".github/workflows/code_quality.yml"),)
 CANONICAL_STATIC_WORKFLOWS = (Path(".github/workflows/publish-template.yml"),)
 SETUP_NODE_RE = re.compile(r"\buses:\s*actions/setup-node@")
@@ -221,24 +220,11 @@ def check_repository(root: Path) -> tuple[int, str]:
         required_static.extend(CANONICAL_STATIC_WORKFLOWS)
     for relative in required_static:
         _require_file(root, relative)
-    _require_file(root, DYNAMIC_WORKFLOW)
-
-    dynamic_references: list[SetupNodeReference] = []
-    static_references: list[SetupNodeReference] = []
-    for relative in _workflow_paths(root):
-        references = _setup_node_references(relative, root)
-        if relative == DYNAMIC_WORKFLOW:
-            dynamic_references.extend(references)
-        else:
-            static_references.extend(references)
-
-    if len(dynamic_references) != 1:
-        raise PolicyError(
-            f"{DYNAMIC_WORKFLOW} must contain exactly one actions/setup-node step"
-        )
-    dynamic = dynamic_references[0]
-    if dynamic.version_file != ".nvmrc" or dynamic.static_major is not None:
-        raise PolicyError(f"{DYNAMIC_WORKFLOW} must use node-version-file: .nvmrc")
+    static_references = [
+        reference
+        for relative in _workflow_paths(root)
+        for reference in _setup_node_references(relative, root)
+    ]
 
     required_static_set = set(required_static)
     observed_static_paths = {reference.path for reference in static_references}
@@ -394,7 +380,6 @@ def update_repository(root: Path, target_major: int) -> list[Path]:
     recognized_workflows = {
         *COMMON_STATIC_WORKFLOWS,
         *CANONICAL_STATIC_WORKFLOWS,
-        DYNAMIC_WORKFLOW,
     }
     extra_static = {
         reference.path

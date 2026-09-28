@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import Depends, File, Form, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from src.common.domain.contexts.domain import DomainContext
 from src.common.domain.entities.common.in_memory_file import InMemoryFile
@@ -23,7 +23,7 @@ from src.tenants.application.use_cases.tenant.registerer import TenantRegisterer
 from src.tenants.application.use_cases.tenant.updater import TenantUpdater
 
 
-class RegisterTenantRequest(BaseModel):
+class RegisterTenantRequest(CamelCaseRequest):
     name: str
     country_code: CountryIsoCode = Field(default=CountryIsoCode.MEXICO)
 

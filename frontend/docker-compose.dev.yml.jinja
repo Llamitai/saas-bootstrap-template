@@ -11,6 +11,23 @@ services:
       - INFISICAL_API_URL=${INFISICAL_API_URL}
       - INFISICAL_MACHINE_CLIENT_ID=${INFISICAL_MACHINE_CLIENT_ID}
       - INFISICAL_MACHINE_CLIENT_SECRET=${INFISICAL_MACHINE_CLIENT_SECRET}
-    restart: always
+    restart: unless-stopped
+    # Published on all interfaces: this stack joins no shared network, so the
+    # reverse proxy reaches it through the host port.
     ports:
       - '14010:3200'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/', { redirect: 'manual', signal: AbortSignal.timeout(4000) }).then((r) => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

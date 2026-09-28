@@ -1,0 +1,76 @@
+---
+title: Introducción
+description: Qué es [[ project_name ]], qué incluye y cómo está organizada esta documentación.
+icon: House
+---
+
+import { Braces, Compass, Lightbulb, Rocket, Users } from "lucide-react";
+
+<Callout title="En resumen">
+  [[ project_name ]] es una base multi-tenant para productos B2B autenticados: entrega auth, tenants, miembros, invitaciones, roles, permisos, perfil, assets y consola interna para que el producto de negocio se construya encima.
+</Callout>
+
+## Qué incluye
+
+<TypeTable
+  type={{
+    auth: {
+      description: "Login, Google, refresh, logout, reset de contraseña y consulta de sesión.",
+      type: "backend + BFF",
+    },
+    "usuarios y perfil": {
+      description: "Registro, perfil propio, contraseña y tenants del usuario.",
+      type: "módulos users, profile",
+    },
+    tenants: {
+      description: "Onboarding, tenant activo, settings, avatar y borrado lógico.",
+      type: "bounded context",
+    },
+    "miembros e invitaciones": {
+      description: "Membresía, invitaciones por email, aceptación, cancelación y perfil del miembro.",
+      type: "tenants",
+    },
+    "roles y permisos": {
+      description: "Roles por tenant y chequeos de permiso (modelados; el enforcement está desactivado por defecto).",
+      type: "autorización",
+    },
+    assets: {
+      description: "Imágenes de tenant y miembro en almacenamiento S3 (RustFS en local).",
+      type: "adapter de storage",
+    },
+    "messaging y jobs": {
+      description: "Correo transaccional por SMTP y comandos diferidos sobre RabbitMQ.",
+      type: "scaffolding",
+    },
+    Directus: {
+      description: "Consola interna para metadatos operativos.",
+      type: "admin",
+    },
+  }}
+/>
+
+## Cómo está organizada
+
+La documentación sigue cuatro necesidades distintas, más una sección para quien mantiene el repositorio:
+
+<Cards>
+  <Card icon={<Rocket />} title="Empezar" href="/docs/instalacion">
+    Instalación local, estructura del repositorio y creación de un proyecto desde la plantilla.
+  </Card>
+  <Card icon={<Compass />} title="Guías" href="/docs/guias">
+    Pasos concretos: crear un módulo backend, una feature frontend, una migración o una página de documentación.
+  </Card>
+  <Card icon={<Lightbulb />} title="Conceptos" href="/docs/conceptos">
+    Por qué la arquitectura es así: capas, BFF, multi-tenancy y modelo de datos.
+  </Card>
+  <Card icon={<Braces />} title="Referencia" href="/docs/referencia">
+    Datos exactos: la API REST generada desde OpenAPI, las recetas `just` y los contratos de miembros.
+  </Card>
+  <Card icon={<Users />} title="Equipo" href="/docs/equipo">
+    Perfil del proyecto, verificación, flujo de cambios y decisiones de arquitectura (ADR).
+  </Card>
+</Cards>
+
+## Para agentes
+
+Cada página se puede leer como Markdown en `/llms.mdx/docs/<ruta>/content.md`. El índice completo está en `/llms.txt` y todo el contenido en una sola respuesta en `/llms-full.txt`. En el repositorio, las mismas páginas viven en `docs/content/docs/`.

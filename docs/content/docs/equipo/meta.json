@@ -1,0 +1,7 @@
+{
+  "title": "Equipo",
+  "description": "Contrato de trabajo y decisiones",
+  "icon": "Users",
+  "root": true,
+  "pages": ["index", "perfil-del-proyecto", "verificacion", "adr", "..."]
+}

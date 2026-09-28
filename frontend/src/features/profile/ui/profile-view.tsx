@@ -4,28 +4,35 @@ import { User } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { useProfileStore } from "@/features/profile/model/profile-store";
+import {
+  useProfileQuery,
+  useUpdatePasswordMutation,
+  useUpdateProfileMutation,
+} from "@/features/profile/api/profile-api";
+import { useHttpErrorMessage } from "@/shared/hooks/use-http-error-message";
 import { ActionButton } from "@/shared/ui/action-button";
+import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { PageContent } from "@/shared/ui/page-content";
 
 export function ProfileView() {
   const t = useTranslations("Profile");
-  const {
-    profile,
-    isLoading,
-    isSaving,
-    isChangingPassword,
-    saveError,
-    saveSuccess,
-    passwordError,
-    passwordSuccess,
-    loadProfile,
-    updateProfile,
-    updatePassword,
-    clearFeedback,
-  } = useProfileStore();
+  const errorMessage = useHttpErrorMessage();
+  const profileQuery = useProfileQuery();
+  const profileMutation = useUpdateProfileMutation();
+  const passwordMutation = useUpdatePasswordMutation();
+  const profile = profileQuery.data;
+  const isSaving = profileMutation.isPending;
+  const isChangingPassword = passwordMutation.isPending;
+  const saveSuccess = profileMutation.isSuccess;
+  const passwordSuccess = passwordMutation.isSuccess;
+  const saveError = profileMutation.isError
+    ? errorMessage(profileMutation.error, t("saveError"))
+    : null;
+  const passwordError = passwordMutation.isError
+    ? errorMessage(passwordMutation.error, t("passwordError"))
+    : null;
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -33,10 +40,6 @@ export function ProfileView() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
-
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
 
   useEffect(() => {
     if (profile) {
@@ -56,26 +59,48 @@ export function ProfileView() {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    clearFeedback();
-    updateProfile({ firstName, lastName });
+    passwordMutation.reset();
+    profileMutation.mutate({ firstName, lastName });
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    clearFeedback();
+    profileMutation.reset();
+    passwordMutation.reset();
 
     if (newPassword !== confirmPassword) {
       setConfirmPasswordError(t("passwordsDontMatch"));
       return;
     }
     setConfirmPasswordError("");
-    updatePassword({ currentPassword, newPassword });
+    passwordMutation.mutate({ currentPassword, newPassword });
   };
 
   const email = profile?.emailAddress?.email ?? "";
   const isVerified = profile?.emailAddress?.isVerified ?? false;
 
-  if (isLoading) {
+  if (profileQuery.isError) {
+    return (
+      <PageContent>
+        <PageContent.Header
+          icon={User}
+          title={t("title")}
+          subtitle={t("description")}
+          className="px-0 pt-0"
+        />
+        <PageContent.Body className="items-start gap-3 px-0 pb-0">
+          <p role="alert" className="text-sm text-destructive">
+            {t("loadError")}
+          </p>
+          <Button variant="outline" onClick={() => profileQuery.refetch()}>
+            {t("retry")}
+          </Button>
+        </PageContent.Body>
+      </PageContent>
+    );
+  }
+
+  if (profileQuery.isPending) {
     return (
       <PageContent>
         <PageContent.Header

@@ -2,8 +2,8 @@ import pytest
 import requests
 from expects import equal, expect, have_key
 
-from src.common.domain.constants.status import HTTP_200_OK
-from tests.api.conftest import BASE_URL, USER_EMAIL, USER_PASSWORD
+from src.common.domain.constants.status import HTTP_200_OK, HTTP_401_UNAUTHORIZED
+from tests.api.conftest import BASE_URL, USER_EMAIL, USER_PASSWORD, LoginTestContext
 
 pytestmark = [pytest.mark.api]
 
@@ -30,6 +30,16 @@ def test_logout__returns_success():
     expect(response.status_code).to(equal(HTTP_200_OK))
     expect(response.json()["data"]).to(have_key("status"))
     expect(response.json()["data"]["status"]).to(equal("SUCCESS"))
+
+
+def test_logout__the_closed_session_cannot_refresh(login_user: LoginTestContext):
+    _ = login_user
+    refresh_token = _login()["session"]["refreshToken"]
+    requests.post(url=f"{BASE_URL}/v1/auth/logout", json={"refreshToken": refresh_token}, timeout=30)
+
+    response = requests.post(url=f"{BASE_URL}/v1/auth/refresh", json={"refreshToken": refresh_token}, timeout=30)
+
+    expect(response.status_code).to(equal(HTTP_401_UNAUTHORIZED))
 
 
 def test_logout__empty_token_returns_error():

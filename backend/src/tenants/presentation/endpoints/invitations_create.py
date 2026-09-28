@@ -11,7 +11,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import Depends, Path, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
 
 from src.common.domain.contexts.bus import BusContext
 from src.common.domain.contexts.domain import DomainContext
@@ -33,7 +33,7 @@ from src.tenants.presentation.presenters.tenant_user_invitation import (
 )
 
 
-class InviteMemberRequest(BaseModel):
+class InviteMemberRequest(CamelCaseRequest):
     email: EmailStr
     role_slug: str = Field(default="member", min_length=1)
 

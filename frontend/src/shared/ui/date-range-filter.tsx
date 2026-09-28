@@ -300,6 +300,7 @@ export function DateRangeFilter({
         </button>
       </div>
 
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: clears a pointer-only hover preview; keyboard selection does not depend on it. */}
       <div
         className="flex items-start px-3 pb-3"
         onMouseLeave={() => setHovered(null)}

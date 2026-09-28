@@ -18,11 +18,12 @@ export function Mermaid({ chart, children }: MermaidProps) {
   const source = (chart ?? children ?? "").trim();
   const [svg, setSvg] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [themeVersion, setThemeVersion] = useState(0);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
+    setDark(isDarkTheme());
     const observer = new MutationObserver(() => {
-      setThemeVersion((value) => value + 1);
+      setDark(isDarkTheme());
     });
 
     observer.observe(document.documentElement, {
@@ -48,7 +49,8 @@ export function Mermaid({ chart, children }: MermaidProps) {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",
-          theme: isDarkTheme() ? "dark" : "default",
+          theme: dark ? "dark" : "neutral",
+          fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
         });
 
         const rendered = await mermaid.render(`mermaid-${id}`, source);
@@ -59,7 +61,9 @@ export function Mermaid({ chart, children }: MermaidProps) {
         }
       } catch (reason) {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : "Diagrama inválido");
+          setError(
+            reason instanceof Error ? reason.message : "Diagrama inválido"
+          );
         }
       }
     }
@@ -69,7 +73,7 @@ export function Mermaid({ chart, children }: MermaidProps) {
     return () => {
       cancelled = true;
     };
-  }, [id, source, themeVersion]);
+  }, [id, source, dark]);
 
   if (error) {
     return (
@@ -82,6 +86,7 @@ export function Mermaid({ chart, children }: MermaidProps) {
   return (
     <div
       className="mermaid-frame"
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG produced by mermaid.render with securityLevel "strict", which sanitizes the output.
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );

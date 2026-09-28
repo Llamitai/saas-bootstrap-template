@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Configure the GitHub Actions variables and secrets the deploy workflows read.
 #
-# Runs between "the Portainer stack exists" and "trust CI to deploy". Creates
+# Runs before the first CI build: build_*.yml read vars.*_REPOSITORY_URI to
+# name the image, and the deploy step reads the stack variables. Creates
 # the deployment environment if absent, then sets every `vars.*` and `secrets.*`
-# name that .github/workflows/*.yml references.
+# name the deploy workflows reference, plus the optional CF_ACCESS_* pair.
 #
-# Values come from a dotenv file; nothing is ever passed on the command line,
-# where it would land in shell history and process listings.
+# Values come from ONE dotenv file; nothing is ever passed on the command line,
+# where it would land in shell history and process listings. Keys the other
+# phases generate (ADMIN_DB_* in .env.deploy.generated) must be merged into
+# that file first. The FIRST line for a key wins even when its value is empty,
+# so concatenate the generated file before .env.deploy.
 #
 # Usage:
-#   github_setup.sh --env-file .env.deploy --environment Production --dry-run
-#   github_setup.sh --env-file .env.deploy --environment Production
-#   github_setup.sh --env-file .env.deploy --environment Production --audit
+#   github_setup.sh --env-file .env.deploy.ci --environment Production --dry-run
+#   github_setup.sh --env-file .env.deploy.ci --environment Production
+#   github_setup.sh --env-file .env.deploy.ci --environment Production --audit
 #
 # Requires: gh (authenticated with repo admin), and a checkout of the repo.
 
@@ -37,7 +41,7 @@ while [[ $# -gt 0 ]]; do
         --all-workflows) WORKFLOWS=""; shift ;;
         --dry-run)     MODE="dry-run"; shift ;;
         --audit)       MODE="audit"; shift ;;
-        -h|--help)     sed -n '2,22p' "$0"; exit 0 ;;
+        -h|--help)     awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -52,7 +56,6 @@ VARS=(
 
     BACKEND_DEPLOYMENT_COMPOSE_FILE
     BACKEND_DEPLOYMENT_SERVICE
-    BACKEND_ECR_REPOSITORY_URI
     BACKEND_PROJECT_ID
     BACKEND_REPOSITORY_URI
 
@@ -174,9 +177,9 @@ Pass --workflows '<names>' or --all-workflows to scan everything."
         fi
     done
 
-    # Names this script would set that no scanned workflow reads. Usually a
-    # leftover from an earlier deployment topology (e.g. an ECR-era URI kept
-    # after the move to ghcr.io). Harmless, but worth knowing it does nothing.
+    # Names this script would set that no scanned workflow reads (for example
+    # CF_ACCESS_* until a deploy step passes them as `headers:`). Harmless, but
+    # worth knowing they do nothing.
     unreferenced=""
     for name in "${VARS[@]}"; do
         grep -qx "$name" <<<"$referenced_vars" || unreferenced+="  vars.$name"$'\n'

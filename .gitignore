@@ -115,3 +115,6 @@ node-compile-cache/
 .recon/
 .deep-visual-fix/
 .playwright/
+
+# claude plugin eval run output
+.claude/skills/*/evals/results/

@@ -13,6 +13,18 @@ Don't mock:
 - Internal collaborators
 - Anything you control
 
+Project exceptions:
+
+- **Backend:** use-case tests mock the domain repository ports (the
+  inward-facing interfaces) with
+  `create_autospec(spec=Repository, spec_set=True, instance=True)`, as described
+  in the `python-testing` skill. Repository adapters themselves are covered by
+  integration tests against PostgreSQL.
+- **Frontend:** the transport boundary is the module `@/shared/http/client`;
+  mock it with `vi.mock('@/shared/http/client')` (see
+  `frontend/tests/api/features/roles/roles-api.test.ts`) instead of injecting
+  clients — the architecture forbids passing an `AxiosInstance`.
+
 ## Designing for Mockability
 
 At system boundaries, design interfaces that are easy to mock:

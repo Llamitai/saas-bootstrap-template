@@ -13,7 +13,7 @@ default:
 _ensure-env:
     @[ -f .env ] || { cp .env.example .env && echo "created backend/.env from .env.example"; }
 
-# Start the full stack (API + Postgres + Redis + Directus + MinIO + Mailpit)
+# Start the full stack (API + worker + Postgres + Valkey + RabbitMQ + Directus + S3 storage + Mailpit)
 dev: _ensure-env
     docker compose up
 
@@ -21,7 +21,7 @@ dev: _ensure-env
 dev-d: _ensure-env
     docker compose up -d
 
-# Run the API locally without docker (needs postgres/redis up)
+# Run the API locally without docker (needs postgres, valkey and rabbitmq up)
 dev-local:
     uvicorn config.main:app --host 0.0.0.0 --port 8200 --reload
 
@@ -101,6 +101,26 @@ quality: code_quality
 check: _ensure-env
     docker compose run --rm --no-deps --entrypoint "" api uv run --locked python scripts/check.py
 
+# Regenerate docs/openapi/openapi.json from the FastAPI app (no services started)
+openapi: _ensure-env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    docker compose run --rm --no-deps -T --entrypoint "" api uv run --locked python scripts/export_openapi.py > "$tmp"
+    mv "$tmp" ../docs/openapi/openapi.json
+    echo "docs/openapi/openapi.json updated"
+
+# Fail when docs/openapi/openapi.json differs from the FastAPI schema; never writes
+openapi-check: _ensure-env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    docker compose run --rm --no-deps -T --entrypoint "" api uv run --locked python scripts/export_openapi.py > "$tmp"
+    diff -u ../docs/openapi/openapi.json "$tmp" \
+        || { echo "docs/openapi/openapi.json is stale; run: just backend openapi" >&2; exit 1; }
+
 # Upgrade disposable databases from base and previous revision; detect drift
 [positional-arguments]
 check-migrations *args:
@@ -164,14 +184,35 @@ seed-admin:
     done
     echo "✅ Directus admin metadata loaded"
 
-# ─── MINIO ──────────────────────────────────────────────────────
+# ─── OBJECT STORAGE (S3) ────────────────────────────────────────
+# The dev `minio` service runs RustFS (S3-compatible); setup uses the AWS CLI.
+
+_s3_cli := "amazon/aws-cli:2.37.4@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6"
+_s3_network := "[[ project_slug ]]-backend_default"
 
 # Create the bucket and make its tenants/ prefix publicly downloadable
-minio-setup bucket="[[ project_slug ]]-dev":
-    docker run --rm --network [[ project_slug ]]-backend_default --entrypoint /bin/sh minio/mc \
-        -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc mb -p 'local/{{bucket}}' && mc anonymous set download 'local/{{bucket}}/tenants'"
+minio-setup bucket="[[ project_slug ]]-dev": && (minio-public bucket)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    s3() {
+        docker run --rm --network {{_s3_network}} \
+            -e AWS_ACCESS_KEY_ID=minioadmin -e AWS_SECRET_ACCESS_KEY=minioadmin -e AWS_DEFAULT_REGION=us-east-1 \
+            {{_s3_cli}} --endpoint-url http://minio:9000 "$@"
+    }
+    if s3 s3api head-bucket --bucket {{quote(bucket)}} >/dev/null 2>&1; then
+        echo "bucket {{bucket}} already exists"
+    else
+        s3 s3api create-bucket --bucket {{quote(bucket)}} >/dev/null
+        echo "bucket {{bucket}} created"
+    fi
 
 # Make the tenants/ prefix publicly downloadable on an existing bucket
 minio-public bucket="[[ project_slug ]]-dev":
-    docker run --rm --network [[ project_slug ]]-backend_default --entrypoint /bin/sh minio/mc \
-        -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc anonymous set download 'local/{{bucket}}/tenants'"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    policy='{"Version":"2012-10-17","Statement":[{"Sid":"PublicReadTenants","Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::{{bucket}}/tenants/*"]}]}'
+    docker run --rm --network {{_s3_network}} \
+        -e AWS_ACCESS_KEY_ID=minioadmin -e AWS_SECRET_ACCESS_KEY=minioadmin -e AWS_DEFAULT_REGION=us-east-1 \
+        {{_s3_cli}} --endpoint-url http://minio:9000 \
+        s3api put-bucket-policy --bucket {{quote(bucket)}} --policy "$policy"
+    echo "tenants/ prefix of {{bucket}} is publicly downloadable"

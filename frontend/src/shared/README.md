@@ -1,42 +1,49 @@
-# Frontend Shared
+# Frontend shared
 
-Shared modules are generic, stable building blocks used by multiple features.
+Los módulos compartidos son piezas genéricas y estables que usan varios
+features. No conocen features, entidades ni reglas de producto.
 
-Expected folders:
+Carpetas actuales:
 
 ```text
 src/shared/
-  config/  # generic environment/config helpers with clear client/server scope
-  http/    # same-origin browser HTTP helpers and server-only wrappers
-  i18n/    # generic localization helpers
-  lib/     # formatting, dates, collections, class-name utilities
-  model/   # truly generic/session-adjacent local state used by infrastructure
-  ui/      # design-system primitives and feature-neutral UI components
+  catalogs/   # catálogos estáticos: países, monedas, zonas horarias
+  config/     # public.ts (seguro para cliente) y server.ts (secretos server-only)
+  helpers/    # helpers JWT y lectura de cookies de sesión en servidor
+  hooks/      # hooks React sin dominio
+  http/       # clientes browser (/api), serverHttp, helpers BFF, errores, cookies
+  lib/        # formato, fechas, ids, utilidades de clases
+  providers/  # QueryProvider (QueryClient estable)
+  types/      # tipos transversales (RequestContext, TaskResult)
+  ui/         # primitives del design system y widgets neutrales
+    components/     # piezas compuestas genéricas (visor JSON, selector de idioma, logo)
+    components/ui/  # visores genéricos (código, JSON)
 ```
 
-Import rules:
+No existe `shared/model` ni stores en shared: los stores Zustand viven en el
+feature dueño (`features/<feature>/model`). Los tipos de sesión viven en
+`entities/session`; el store de sesión, en `features/auth/model`.
 
-- `shared` may not import from `features` or `app`.
-- `shared/ui` contains presentational primitives only; no feature data fetching.
-- Shared browser code must not import backend host settings, `serverHttp`, or raw
-  infrastructure repositories.
-- If code has a product owner or feature-specific behavior, keep it in the owning
-  feature instead of moving it here.
+Reglas de import (las aplica `scripts/check-import-boundaries.mjs`):
 
-Current shared ownership:
+- `shared` no importa de `entities`, `features` ni `app`.
+- `shared/ui` es solo presentacional: sin fetching de datos, navegación de
+  producto ni permisos.
+- El código browser-facing (módulos `"use client"`, `shared/ui`, `ui/` de
+  features) no importa `@/shared/config/server`, `@/shared/http/server`,
+  `@/shared/http/bff`, `@/shared/http/session-cookies`, `@/shared/http/requests`,
+  `next/headers` ni `server-only`.
+- Un módulo nuevo que lee secretos empieza con `import "server-only"`.
+- Si el código tiene dueño de producto o comportamiento de un feature, se queda
+  en ese feature.
 
-- `shared/http`: same-origin browser clients, server-only BFF clients and common headers.
-- `shared/ui`: design-system primitives plus feature-neutral widgets such as
-  page content, filters, viewer primitives, and empty states.
-- `shared/lib`: formatting/date/class-name utilities and generic hooks.
-- `shared/model`: app-wide local state needed below feature level, currently the
-  session store and core tenant/user entities.
-
-Examples:
+Ejemplos:
 
 ```ts
 import { authHttp } from "@/shared/http/client";
-import { serverHttp } from "@/shared/http/server";
+import { serverHttp } from "@/shared/http/server"; // solo código de servidor
 import { cn } from "@/shared/lib/utils";
 import { PageContent } from "@/shared/ui/page-content";
 ```
+
+Referencia: [arquitectura frontend](../../../docs/content/docs/conceptos/arquitectura-frontend.md).

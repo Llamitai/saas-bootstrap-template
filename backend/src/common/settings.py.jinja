@@ -1,10 +1,12 @@
 import base64
 import secrets
 from typing import Annotated, Any, Self
+from urllib.parse import quote
 
 from pydantic import (
     AnyUrl,
     BeforeValidator,
+    Field,
     HttpUrl,
     computed_field,
     model_validator,
@@ -49,6 +51,11 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     JWT_ALGORITHM: str = "HS256"
     JWT_ISSUER: str = "[[ project_slug ]]"
+    # Window in which a just-rotated refresh token returns the same new pair instead
+    # of 401, so concurrent refreshes (proxy + route handler, several instances) agree.
+    JWT_REFRESH_GRACE_SECONDS: int = 30
+    # Concurrent sessions per user; a login beyond it closes the least recently used.
+    JWT_MAX_SESSIONS_PER_USER: int = Field(default=1, ge=1)
 
     # Common
     SECRET_KEY: str = ""
@@ -66,6 +73,35 @@ class Settings(BaseSettings):
     REDIS_USER: str | None = None
     REDIS_PASSWORD: str | None = None
     REDIS_DB: int = 0
+    # Connection pool of the process-wide client (API lifespan and worker). Each
+    # process opens at most this many sockets; commands wait for a free one.
+    REDIS_MAX_CONNECTIONS: int = 50
+    REDIS_SOCKET_TIMEOUT: float = 5.0
+    REDIS_SOCKET_CONNECT_TIMEOUT: float = 5.0
+    # Seconds a pooled connection may sit idle before it is PINGed on checkout.
+    REDIS_HEALTH_CHECK_INTERVAL: int = 30
+
+    # RabbitMQ Configuration (deferred commands, `dispatch(..., run_async=True)`)
+    RABBITMQ_HOST: str = "rabbitmq"
+    RABBITMQ_PORT: int = 5672
+    RABBITMQ_USER: str = "app"
+    RABBITMQ_PASSWORD: str = "app"
+    RABBITMQ_VHOST: str = "/"
+    # Durable direct exchange and quorum queue; dead letters go to `<exchange>.dlx`
+    # and `<queue>.dlq`.
+    RABBITMQ_EXCHANGE: str = "commands"
+    RABBITMQ_QUEUE: str = "commands.default"
+    # Unacknowledged messages per worker process, i.e. its concurrency.
+    RABBITMQ_PREFETCH: int = 10
+    # Deliveries of a failing command before it is dead-lettered (first try included).
+    # Also the queue's x-delivery-limit, the broker-side net for crashing consumers.
+    RABBITMQ_DELIVERY_LIMIT: int = 5
+    # Base of the exponential pause before a failed message is returned (capped at 30s).
+    RABBITMQ_RETRY_BACKOFF_SECONDS: float = 1.0
+    RABBITMQ_PUBLISH_TIMEOUT_SECONDS: float = 10.0
+    # After SIGTERM the worker waits this long for in-flight commands; unfinished
+    # ones are cancelled and redelivered. Keep the container stop grace above it.
+    RABBITMQ_SHUTDOWN_GRACE_SECONDS: float = 30.0
 
     PAGINATION_PAGE_SIZE: int = 25
 
@@ -96,15 +132,6 @@ class Settings(BaseSettings):
     AWS_STORAGE_BUCKET_NAME: str | None = None
     AWS_CLOUDFRONT_DOMAIN: str | None = None
 
-    # -> AEGORA AWS BATCH CONFIGURATION
-    # Dedicated credentials avoid coupling Aegora permissions to asset storage.
-    AEGORA_AWS_ACCESS_KEY_ID: str | None = None
-    AEGORA_AWS_SECRET_ACCESS_KEY: str | None = None
-    AEGORA_AWS_REGION: str = "us-east-1"
-    AEGORA_BATCH_JOB_QUEUE: str | None = None
-    AEGORA_BATCH_JOB_DEFINITION: str | None = None
-    AEGORA_BATCH_EVENT_QUEUE_URL: str | None = None
-
     # -> ADMIN CONFIGURATION
     ADMIN_LOGO_URL: str = "https://preview.tabler.io/static/logo-white.svg"
     ADMIN_LOGIN_LOGO_URL: str = "https://preview.tabler.io/static/logo.svg"
@@ -117,7 +144,8 @@ class Settings(BaseSettings):
     SENTRY_ENVIRONMENT: Stage = Stage.dev
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
     SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
-    SENTRY_SEND_DEFAULT_PII: bool = True  # GDPR compliance
+    # Opt-in: when True Sentry attaches IPs, cookies, auth headers and user data.
+    SENTRY_SEND_DEFAULT_PII: bool = False
 
     # Admin & Integrations
     ADMIN_API_KEY: str = ""
@@ -131,6 +159,7 @@ class Settings(BaseSettings):
                 "ADMIN_API_KEY",
                 "POSTGRES_PASSWORD",
                 "REDIS_PASSWORD",
+                "RABBITMQ_PASSWORD",
             )
             missing = [name for name in required if not getattr(self, name)]
             if missing:
@@ -148,6 +177,8 @@ class Settings(BaseSettings):
                     insecure.append(f"{name} must be at least 32 characters")
             if self.POSTGRES_PASSWORD == "postgres":
                 insecure.append("POSTGRES_PASSWORD must not be the default 'postgres'")
+            if self.RABBITMQ_PASSWORD in {"app", "guest"}:
+                insecure.append("RABBITMQ_PASSWORD must not be a default ('app' or 'guest')")
             if insecure:
                 joined = "; ".join(insecure)
                 raise ValueError(f"Insecure production secret(s): {joined}")
@@ -197,6 +228,14 @@ class Settings(BaseSettings):
                 f"redis://{self.REDIS_USER}:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+    @computed_field
+    @property
+    def rabbitmq_url(self) -> str:
+        user = quote(self.RABBITMQ_USER, safe="")
+        password = quote(self.RABBITMQ_PASSWORD, safe="")
+        vhost = quote(self.RABBITMQ_VHOST, safe="")
+        return f"amqp://{user}:{password}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/{vhost}"
 
     @property
     def sentry_enabled(self) -> bool:

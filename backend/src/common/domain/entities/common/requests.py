@@ -1,6 +1,9 @@
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic.alias_generators import to_camel
+
+from src.common.domain.entities.phone_number import RawPhoneNumber
 
 
 class CamelCaseRequest(BaseModel):
@@ -15,8 +18,13 @@ class CamelCaseRequest(BaseModel):
         Model fields: first_name="John", last_name="Doe"
     """
 
+    # camelCase aliases document the wire format in OpenAPI; validation still accepts
+    # field names because the before-validator (and the middleware) snake-case keys.
+    # `model_dump()` keeps snake_case field names for the application layer.
     model_config = ConfigDict(
-        populate_by_name=True,
+        alias_generator=to_camel,
+        validate_by_name=True,
+        validate_by_alias=True,
         validate_assignment=True,
         from_attributes=True,
         str_strip_whitespace=True,
@@ -66,3 +74,7 @@ class CamelCaseRequest(BaseModel):
                 converted[snake_key] = value
 
         return converted
+
+
+class PhoneNumberRequest(RawPhoneNumber, CamelCaseRequest):
+    """RawPhoneNumber as a request body fragment (camelCase in OpenAPI)."""

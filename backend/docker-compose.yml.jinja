@@ -2,7 +2,7 @@ name: [[ project_slug ]]-backend
 
 services:
   directus-admin:
-    image: directus/directus:12.1.1
+    image: directus/directus:12.3.1
     restart: unless-stopped
     ports:
       - "127.0.0.1:8055:8055"
@@ -47,17 +47,46 @@ services:
       postgres:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8200:8200"
     volumes:
       - .:/app
     command: /start
 
+  # Deferred-command consumer (dispatch(..., run_async=True)). No autoreload:
+  # run `docker compose restart worker` after changing command handlers.
+  worker:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - PROCESS_LABEL=worker
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python -m config.worker
+    restart: unless-stopped
+    # SIGTERM stops consuming and lets in-flight commands finish.
+    stop_grace_period: 60s
+
   postgres:
     image: postgres:17
     ports:
-      - "127.0.0.1:5434:5432"
+      - "127.0.0.1:5435:5432"
     env_file:
       - .env
     volumes:
@@ -77,22 +106,61 @@ services:
       -c min_wal_size=1GB
       -c max_wal_size=4GB
 
+  # Valkey (Redis-compatible). The service keeps the `redis` hostname that
+  # REDIS_HOST and the redis-py client use.
   redis:
-    image: redis:8
+    image: valkey/valkey:9.1
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     ports:
-      - "127.0.0.1:6791:6379"
+      - "127.0.0.1:6792:6379"
+    volumes:
+      - ./docker/valkey/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
+  # Message broker for deferred commands; stability settings live in
+  # docker/rabbitmq/rabbitmq.conf. Management UI: http://localhost:15672
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    # Run as the broker user: a root CLI probe that starts before the server
+    # would create a root-owned .erlang.cookie and abort the boot (eacces).
+    user: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-app}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:-app}"
+    volumes:
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-app.conf:ro
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  # S3-compatible object storage for local development (RustFS; MinIO stopped
+  # publishing images). The service keeps the `minio` hostname and the
+  # minioadmin credentials that backend/.env.example (AWS_S3_ENDPOINT_URL) uses.
+  # Create the bucket with: just backend minio-setup
   minio:
-    image: quay.io/minio/minio
+    image: rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     volumes:
-      - ./public:/data
+      - s3_data:/data
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    command: server /data --console-address ":9001"
+      - RUSTFS_ACCESS_KEY=minioadmin
+      - RUSTFS_SECRET_KEY=minioadmin
+      - RUSTFS_CONSOLE_ENABLE=true
 
   mailpit:
     image: axllent/mailpit
@@ -105,3 +173,6 @@ services:
 
 volumes:
   postgres_data:
+  s3_data:
+  valkey_data:
+  rabbitmq_data:

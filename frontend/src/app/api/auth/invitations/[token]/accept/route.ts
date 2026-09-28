@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { backendHeadersFrom } from "@/shared/http/bff";
 import { genericServerError } from "@/shared/http/errors";
 import { serverHttp } from "@/shared/http/server";
 import { setSessionCookies } from "@/shared/http/session-cookies";
@@ -19,7 +20,7 @@ export async function POST(
     const backendRes = await serverHttp.post(
       `/invitations/${encodeURIComponent(token)}/accept`,
       body,
-      { validateStatus: () => true }
+      { headers: backendHeadersFrom(request), validateStatus: () => true }
     );
     if (backendRes.status >= 400) {
       return NextResponse.json(backendRes.data, { status: backendRes.status });

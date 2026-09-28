@@ -1,0 +1,69 @@
+---
+title: Crear y comprobar una migración
+description: Generar una revisión Alembic, revisarla y probarla contra bases desechables.
+icon: Database
+---
+
+<Callout title="En resumen">
+  Alembic autogenera un punto de partida; la revisión se revisa a mano, se renombra según la convención y se prueba con `just backend check-migrations`, que usa bases de datos exclusivas.
+</Callout>
+
+Los modelos ORM viven en `backend/src/common/database/models/` y las revisiones en `backend/src/common/database/versions/`. La base parte de una única migración inicial del core.
+
+## Pasos
+
+<Steps>
+  <Step>
+    ### Poner la base local al día
+
+    ```bash
+    just backend migrate
+    ```
+
+    El autogenerado compara contra la base local; con una base desactualizada la revisión sale mal.
+  </Step>
+  <Step>
+    ### Cambiar el modelo y generar la revisión
+
+    ```bash
+    just backend new-migration "add invoices table"
+    ```
+
+    Nombra de forma explícita constraints e índices nuevos (`uq_<tabla>_<columnas>`, `ix_...`, `fk_...`): `Base.metadata` no define `naming_convention`.
+  </Step>
+  <Step>
+    ### Revisar y renombrar
+
+    Revisa el SQL, el orden de las FK y las transformaciones de datos. Los ids siguen `YYYYMMDD_NNNNNN` con archivos `<revision>_<slug>.py`: fija `revision` y renombra el archivo a la siguiente secuencia, porque la receta genera un id hexadecimal aleatorio. Las tablas `directus_*` se excluyen: no escribas migraciones para ellas.
+  </Step>
+  <Step>
+    ### Probar la migración
+
+    ```bash
+    just backend check-migrations
+    ```
+
+    Crea dos bases exclusivas, migra desde cero y desde la revisión anterior hasta `head`, y ejecuta `alembic check` para detectar drift entre modelos y migraciones.
+  </Step>
+</Steps>
+
+## Migraciones que transforman datos
+
+Carga datos representativos antes del upgrade y exige una aserción después:
+
+```bash
+just backend check-migrations --previous <revision> \
+  --fixture-sql <ruta> --assert-sql <ruta>
+```
+
+Las rutas son relativas a `backend/` dentro del contenedor. `--assert-sql` debe devolver un booleano verdadero. Que no haya drift no demuestra que los datos se conserven: la aserción sí.
+
+## Otras recetas
+
+| Receta | Uso |
+| --- | --- |
+| `just backend migrate-current` | Revisión aplicada en la base local |
+| `just backend migrate-history` | Grafo de revisiones |
+| `just backend migrate-down [pasos]` | Revertir en la base local |
+
+`metadata.create_all` y `migrate-current` no son evidencia de una migración correcta. Las decisiones estructurales se registran en un [ADR](../../equipo/adr/index.md) y el workflow [schema-change](../../../../../.claude/skills/schema-change/SKILL.md) detalla el cierre.

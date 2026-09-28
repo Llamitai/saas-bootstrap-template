@@ -49,7 +49,7 @@ async def update_member_photo(
         tenant_user_id=tenant_user_id,
         file_name=in_memory.file_name or "photo",
     )
-    uploaded = app_context.domain.storage_service.upload_file(replace(in_memory, file_path=storage_path))
+    uploaded = await app_context.domain.storage_service.upload_file(replace(in_memory, file_path=storage_path))
     photo_url = build_storage_url(uploaded.file_path)  # ty: ignore[invalid-argument-type]  (upload_file siempre setea file_path)
 
     updated_tenant_user = await TenantUserUpdater(

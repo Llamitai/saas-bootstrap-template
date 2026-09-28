@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.common.application.helpers.datetimes import utc_now
 from src.common.domain.enums.common import Environment
@@ -24,7 +24,7 @@ settings.POSTGRES_DB = TEST_DB_NAME
 settings.ENVIRONMENT = Environment.testing
 
 import src.common.database.models  # noqa: E402,F401  registers all ORM models on Base.metadata
-from src.common.database.config import get_database_config  # noqa: E402
+from src.common.database.config import DatabaseConfig, get_database_config  # noqa: E402
 from src.common.database.mixins.common import Base  # noqa: E402
 
 
@@ -61,12 +61,13 @@ async def _drop_test_database() -> None:
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
-        if {"setup_database", "async_session"} & set(item.fixturenames):
+        if {"setup_database", "async_session", "session_maker", "database_config"} & set(item.fixturenames):
             item.add_marker(pytest.mark.db)
 
 
 @pytest.fixture(scope="session")
-async def setup_database() -> AsyncGenerator[None]:
+async def database_config() -> AsyncGenerator[DatabaseConfig]:
+    """One engine for the whole run; the event loop is session-scoped (pyproject)."""
     assert settings.POSTGRES_DB == TEST_DB_NAME, (
         f"Refusing to run: POSTGRES_DB is {settings.POSTGRES_DB!r}, expected {TEST_DB_NAME!r}."
     )
@@ -77,15 +78,26 @@ async def setup_database() -> AsyncGenerator[None]:
     try:
         async with db_config.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        yield
+        yield db_config
     finally:
         await db_config.dispose()
         await _drop_test_database()
 
 
+@pytest.fixture(scope="session")
+async def setup_database(database_config: DatabaseConfig) -> None:
+    return None
+
+
+@pytest.fixture
+def session_maker(setup_database: None, database_config: DatabaseConfig) -> async_sessionmaker[AsyncSession]:
+    """Opens independent sessions, e.g. to observe what another session committed."""
+    return database_config.session_maker
+
+
 @pytest.fixture(scope="function")
-async def async_session(setup_database: None) -> AsyncGenerator[AsyncSession]:
-    async with get_database_config().session_maker() as session:
+async def async_session(session_maker: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession]:
+    async with session_maker() as session:
         yield session
 
 

@@ -1,15 +1,64 @@
-from collections.abc import Callable
+import hmac
+import ipaddress
+import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Request
 from redis.asyncio import Redis
 
+from src.common.domain.enums.jwt import JwtTokenScope
+from src.common.infrastructure.services.jwt_token_builder import JwtTokenBuilder
 from src.common.infrastructure.services.rate_limiter import (
     RateLimiter,
     RateLimitExceededError,
     RateLimitStrategy,
 )
+from src.common.settings import settings
+
+# Set by the frontend server (proxy/BFF) to the browser's IP. Trusted only on requests
+# that also carry the server-only X-Api-Key; otherwise anyone could pick a bucket.
+CLIENT_IP_HEADER = "X-Client-IP"
+
+KeyFunc = Callable[[Request], Awaitable[str]]
+
+
+def client_ip(request: Request) -> str:
+    """The rate-limit identity of the caller.
+
+    Server-to-server calls from the frontend share one socket address, so the
+    frontend forwards the browser IP in `X-Client-IP`. The header is honoured only
+    with a valid X-Api-Key and when it holds a single IP address.
+    """
+    forwarded = (request.headers.get(CLIENT_IP_HEADER) or "").strip()
+    api_key = request.headers.get("x-api-key") or ""
+    if forwarded and api_key and hmac.compare_digest(api_key.encode(), settings.ADMIN_API_KEY.encode()):
+        try:
+            return str(ipaddress.ip_address(forwarded))
+        except ValueError:
+            pass
+    return request.client.host if request.client else "unknown"
+
+
+async def ip_key(request: Request) -> str:
+    return f"ip:{client_ip(request)}:{request.url.path}"
+
+
+async def refresh_token_subject_or_ip(request: Request) -> str:
+    """Key refreshes by the token subject so users behind one address don't share a bucket.
+
+    Only a validly signed refresh token names a subject; anything else is keyed by IP.
+    """
+    try:
+        body = json.loads(await request.body() or b"{}")
+        token = body.get("refresh_token") or body.get("refreshToken") if isinstance(body, dict) else None
+    except ValueError:
+        token = None
+    claims = JwtTokenBuilder().verify_token(token, expected_scope=JwtTokenScope.REFRESH) if token else None
+    if claims is None:
+        return await ip_key(request)
+    return f"sub:{claims.sub}:{request.url.path}"
 
 
 def get_redis_client(request: Request) -> Redis:
@@ -24,14 +73,14 @@ class RateLimitConfig:
     limit: int  # Maximum requests allowed
     window: int  # Time window in seconds
     strategy: RateLimitStrategy = "fixed_window"
-    key_func: Callable[[Request], str] | None = None  # Custom key function
+    key_func: KeyFunc | None = None  # Custom key function
 
 
 def create_rate_limit_dependency(
     limit: int,
     window: int,
     strategy: RateLimitStrategy = "fixed_window",
-    key_func: Callable[[Request], str] | None = None,
+    key_func: KeyFunc | None = None,
 ):
     """
     Create a FastAPI dependency for rate limiting.
@@ -46,14 +95,10 @@ def create_rate_limit_dependency(
         # Rate limit by IP address (10 requests per minute)
         rate_limit_dep = create_rate_limit_dependency(limit=10, window=60)
 
-        @router.get("/endpoint")
-        async def my_endpoint(
-            _: Annotated[None, Depends(rate_limit_dep)]
-        ):
-            return {"message": "success"}
+        router.add_api_route("/endpoint", my_endpoint, methods=["GET"], dependencies=[Depends(rate_limit_dep)])
 
         # Rate limit by user ID (100 requests per hour)
-        def by_user(request: Request) -> str:
+        async def by_user(request: Request) -> str:
             return f"user:{request.state.user_id}"
 
         rate_limit_user = create_rate_limit_dependency(
@@ -68,12 +113,7 @@ def create_rate_limit_dependency(
         redis_client: Annotated[Redis, Depends(get_redis_client)],
     ) -> None:
         # Generate rate limit key
-        if key_func:
-            key = key_func(request)
-        else:
-            # Default: use IP address
-            client_ip = request.client.host if request.client else "unknown"
-            key = f"ip:{client_ip}:{request.url.path}"
+        key = await (key_func or ip_key)(request)
 
         # Check rate limit
         rate_limiter = RateLimiter(redis_client=redis_client)

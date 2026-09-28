@@ -1,10 +1,12 @@
 from fastapi import APIRouter
 
+from src.common.presentation.schemas.envelopes import Envelope, TaskResultResponse
 from src.profile.presentation.endpoints.get_profile import get_profile
 from src.profile.presentation.endpoints.get_user_tenants import get_user_tenants
 from src.profile.presentation.endpoints.update_me_tenant import update_me_tenant
 from src.profile.presentation.endpoints.update_password import update_password
 from src.profile.presentation.endpoints.update_profile import update_profile
+from src.profile.presentation.schemas import TenantModel, UserModel
 
 me_router = APIRouter(prefix="/me", tags=["me"])
 
@@ -13,6 +15,7 @@ me_router.add_api_route(
     get_profile,
     methods=["GET"],
     summary="Get current user profile",
+    response_model=Envelope[UserModel],
 )
 
 me_router.add_api_route(
@@ -20,6 +23,7 @@ me_router.add_api_route(
     update_profile,
     methods=["PUT"],
     summary="Update current user profile",
+    response_model=Envelope[UserModel],
 )
 
 me_router.add_api_route(
@@ -27,6 +31,7 @@ me_router.add_api_route(
     update_password,
     methods=["PUT"],
     summary="Update current user password",
+    response_model=Envelope[TaskResultResponse],
 )
 
 me_router.add_api_route(
@@ -35,6 +40,7 @@ me_router.add_api_route(
     methods=["GET"],
     summary="Get user tenants",
     description="Returns all tenants where the authenticated user is a member",
+    response_model=Envelope[list[TenantModel]],
 )
 
 me_router.add_api_route(
@@ -43,4 +49,5 @@ me_router.add_api_route(
     methods=["PUT"],
     summary="Update current tenant",
     description="Updates the authenticated user's current tenant",
+    response_model=Envelope[TaskResultResponse],
 )

@@ -1,5 +1,7 @@
 # Portainer API reference
 
+Contents: [Authentication](#authentication) · [Find the environment (endpoint) id](#find-the-environment-endpoint-id) · [Create a standalone Compose stack from Git](#create-a-standalone-compose-stack-from-git) · [Redeploy an existing Git stack](#redeploy-an-existing-git-stack) · [Find a stack by name](#find-a-stack-by-name) · [How stack env vars actually reach containers](#how-stack-env-vars-actually-reach-containers) · [Webhooks](#webhooks) · [The community GitHub Action](#the-community-github-action) · [Version check](#version-check)
+
 Verified against the Portainer CE source (`release/2.19` … `release/2.33`) and
 the `cssnr/portainer-stack-deploy-action@v2` source. Applies to Portainer CE
 2.19+; Business Edition adds fields not covered here.
@@ -205,7 +207,7 @@ Three defaults worth knowing:
 | Input | Default | Why it matters |
 | --- | --- | --- |
 | `standalone` | **`false`** | i.e. it assumes **Swarm**. Must be `true` for plain Docker, or it calls `/docker/swarm` and fails. |
-| `endpoint` | first endpoint from `GET /api/endpoints` | On multi-environment Portainer this silently picks the wrong host. Always set it. |
+| `endpoint` | first endpoint from `GET /api/endpoints` | On multi-environment Portainer this silently picks the wrong host. Always set it — this repo's `build_*.yml` and `rollback.yml` do not yet. |
 | — | — | Its axios client sets `rejectUnauthorized: false` **unconditionally** — TLS verification against Portainer is always off. |
 
 Env semantics: with neither `env_data` nor `env_file`, it re-sends the stack's

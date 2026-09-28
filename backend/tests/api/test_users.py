@@ -190,3 +190,25 @@ def test_delete_tenant_user(login_user: LoginTestContext, tenant_members: list[d
     )
 
     expect(response.status_code).to(equal(HTTP_200_OK))
+
+
+@pytest.mark.api
+def test_register_user__ignores_privilege_fields_and_returns_the_public_view():
+    email = f"register-{uuid4().hex[:8]}@test.com"
+
+    response = requests.post(
+        url=f"{BASE_URL}/v1/users",
+        json={"email": email, "password": MEMBER_PASSWORD, "isSuperuser": True},
+        timeout=30,
+    )
+
+    expect(response.status_code).to(equal(HTTP_201_CREATED))
+    data = response.json()["data"]
+    expect(sorted(data)).to(equal(["emailAddress", "firstName", "lastName", "username", "uuid"]))
+    expect(data["emailAddress"]["email"]).to(equal(email))
+    login = requests.post(
+        url=f"{BASE_URL}/v1/auth/login",
+        json={"email": email, "password": MEMBER_PASSWORD},
+        timeout=30,
+    )
+    expect(login.json()["data"]["user"]["isSuperuser"]).to(equal(False))

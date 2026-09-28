@@ -1,0 +1,40 @@
+---
+title: Referencia
+description: API REST generada desde OpenAPI, comandos y contratos exactos.
+icon: Braces
+---
+
+import { Building2, KeyRound, Mail, ShieldCheck, UserRound } from "lucide-react";
+
+<Callout title="En resumen">
+  La referencia de la API se genera del esquema OpenAPI del backend en cada build, así que refleja el código de la revisión publicada. Las reglas que el esquema no expresa tienen páginas propias.
+</Callout>
+
+## API REST
+
+Una página por operación, agrupada por tag. Las rutas son las del backend (`/v1/...`); desde el navegador se llaman bajo `/api` en el mismo origen. Las respuestas salen en camelCase dentro de `{ data, timestamp }`.
+
+<Cards>
+  <Card icon={<KeyRound />} title="auth" href="/docs/referencia/api/auth/post-v1-auth-login">
+    Login, Google, refresh, logout, sesión y reseteo de contraseña.
+  </Card>
+  <Card icon={<UserRound />} title="me y users" href="/docs/referencia/api/me/get-v1-me-profile">
+    Registro, perfil propio, contraseña y tenants del usuario.
+  </Card>
+  <Card icon={<Building2 />} title="tenants" href="/docs/referencia/api/tenants/post-v1-tenants">
+    Tenants, settings, miembros, invitaciones y roles.
+  </Card>
+  <Card icon={<Mail />} title="invitations" href="/docs/referencia/api/invitations/get-v1-invitations-token">
+    Consulta y aceptación pública de invitaciones.
+  </Card>
+  <Card icon={<ShieldCheck />} title="tasks" href="/docs/referencia/api/tasks/post-v1-admin-users-set-password">
+    Operaciones administrativas internas.
+  </Card>
+</Cards>
+
+El esquema completo está en `docs/openapi/openapi.json` y, con el backend en marcha, en `http://localhost:8200/api/py/docs`. Para regenerarlo, ver [Actualizar la referencia OpenAPI](../guias/documentacion/actualizar-openapi.mdx).
+
+## Contratos y comandos
+
+- [Comandos](comandos.mdx): recetas `just` por área.
+- [Miembros e invitaciones](miembros-e-invitaciones.md): permisos, efectos y errores que el esquema no detalla.

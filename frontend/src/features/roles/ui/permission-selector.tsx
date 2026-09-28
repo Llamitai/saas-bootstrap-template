@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { PERMISSIONS_CATALOG } from "@/entities/permission";
 import { Button } from "@/shared/ui/button";
@@ -28,6 +29,7 @@ export function PermissionSelector({
   selected,
   onConfirm,
 }: PermissionSelectorProps) {
+  const t = useTranslations("RoleDialog");
   const [search, setSearch] = useState("");
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
 
@@ -98,7 +100,7 @@ export function PermissionSelector({
       <DialogBackdrop />
       <DialogPopup className="max-w-lg p-6">
         <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle>Seleccionar Permisos</DialogTitle>
+          <DialogTitle>{t("selectPermissions")}</DialogTitle>
           <DialogClose className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100">
             <X className="h-4 w-4" />
           </DialogClose>
@@ -107,7 +109,7 @@ export function PermissionSelector({
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar permisos..."
+            placeholder={t("searchPermissions")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -152,9 +154,9 @@ export function PermissionSelector({
 
         <div className="flex items-center justify-between mt-6">
           <span className="text-sm text-muted-foreground">
-            {localSelected.length} permisos seleccionados
+            {t("selectedCount", { count: localSelected.length })}
           </span>
-          <Button onClick={handleConfirm}>Listo</Button>
+          <Button onClick={handleConfirm}>{t("done")}</Button>
         </div>
       </DialogPopup>
     </Dialog>

@@ -33,7 +33,13 @@
   "AppShell": {
     "help": "Help",
     "breadcrumbsLabel": "Breadcrumb",
-    "breadcrumbsOverflow": "Show intermediate levels"
+    "breadcrumbsOverflow": "Show intermediate levels",
+    "superuserActions": "Superuser actions",
+    "superuser": "Superuser",
+    "registerTenant": "Register tenant",
+    "switchTenant": "Switch tenant",
+    "loadingTenants": "Loading tenants...",
+    "currentTenant": "Current"
   },
   "NavUser": {
     "profile": "My profile",
@@ -241,7 +247,10 @@
     "selectPermissions": "Select permissions",
     "cancel": "Cancel",
     "create": "Create role",
-    "save": "Save changes"
+    "save": "Save changes",
+    "searchPermissions": "Search permissions...",
+    "selectedCount": "{count, plural, one {# permission selected} other {# permissions selected}}",
+    "done": "Done"
   },
   "MemberItem": {
     "noName": "No name",
@@ -315,7 +324,11 @@
     "passwordsDontMatch": "Passwords do not match",
     "passwordSuccess": "Password updated successfully",
     "changePassword": "Change password",
-    "changing": "Changing..."
+    "changing": "Changing...",
+    "loadError": "We couldn't load your profile.",
+    "retry": "Try again",
+    "saveError": "We couldn't update your profile.",
+    "passwordError": "We couldn't change your password."
   },
   "InviteUserDialog": {
     "title": "Invite user",
@@ -409,5 +422,39 @@
   "Metadata": {
     "title": "[[ project_name ]] - Multi-tenant starter",
     "description": "Authentication, tenants and roles ready to extend."
+  },
+  "PageTitles": {
+    "members": "Members",
+    "roles": "Roles",
+    "settings": "Settings",
+    "profile": "My profile",
+    "forbidden": "Access denied",
+    "register": "Create account",
+    "resetPassword": "Reset password"
+  },
+  "HttpErrors": {
+    "BAD_REQUEST": "The request is not valid.",
+    "UNAUTHORIZED": "Your session expired. Sign in again.",
+    "FORBIDDEN": "You don't have permission for this action.",
+    "NOT_FOUND": "We couldn't find what you were looking for.",
+    "CONFLICT": "The data conflicts with another change.",
+    "VALIDATION_ERROR": "Check the data you entered.",
+    "RATE_LIMIT": "Too many requests. Try again in a moment.",
+    "INTERNAL_SERVER_ERROR": "The server had an error. Try again.",
+    "BAD_GATEWAY": "The service did not respond correctly. Try again.",
+    "SERVICE_UNAVAILABLE": "The service is unavailable. Try again later.",
+    "GATEWAY_TIMEOUT": "The service took too long. Try again.",
+    "SERVER_ERROR": "The server had an error. Try again.",
+    "CLIENT_ERROR": "The request could not be completed.",
+    "NETWORK_ERROR": "There is no connection to the server.",
+    "UNKNOWN_ERROR": "An unexpected error occurred.",
+    "client_ServerError": "An unexpected error occurred.",
+    "bff_upstream_error": "The backend service returned an error.",
+    "bff_upstream_unreachable": "The service could not be reached. Try again."
+  },
+  "ServiceUnavailable": {
+    "title": "Service briefly unavailable",
+    "description": "Your session is still active. We will retry automatically in a few seconds.",
+    "retry": "Retry now"
   }
 }

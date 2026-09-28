@@ -14,8 +14,7 @@ mod backend "just/backend.just"
 mod frontend "just/frontend.just"
 mod docs "just/docs.just"
 
-# Optional: template tooling exists only in the canonical boilerplate repo
-# (scripts/build_template.py strips it from generated projects).
+# Copier template tooling (canonical repo only; stripped from generated projects)
 mod? template "just/template.just"
 
 # List available commands
@@ -34,7 +33,7 @@ build-all:
     just frontend build
     just docs build
 
-# Static checks, backend non-API tests and frontend verify (see verification.md)
+# Static checks, backend non-API tests and frontend verify (see equipo/verificacion.md)
 verify:
     just agent-check
     just backend check
@@ -62,20 +61,34 @@ spec-check item kind="change":
 
 # ─── AGENT SKILLS ───────────────────────────────────────────────
 
-# Sync canonical skills to the declared Codex/OpenCode/.agents subsets
+# Sync canonical skills to .agents/skills (scripts/skill_inventory.json)
 [positional-arguments]
 sync-skills *args:
     python3 scripts/sync_skills.py "$@"
 
+# Run Claude Code trigger evals for skills with an evals/ suite (billed model calls)
+[positional-arguments]
+skill-evals *skills:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "$#" -eq 0 ]; then
+        set -- $(for d in .claude/skills/*/evals; do basename "$(dirname "$d")"; done)
+    fi
+    status=0
+    for skill in "$@"; do
+        (cd ".claude/skills/$skill" && claude plugin eval . --ablation none --no-publish --trust-plugin --threshold 0.66) || status=1
+    done
+    exit "$status"
+
 # ─── DOCKER (cross-cutting) ─────────────────────────────────────
 
-# Stop every container from every stack
+# Stop the local backend stack (backend/docker-compose.yml) only; other stacks keep running
 stop-all:
     cd backend && docker compose down 2>/dev/null; \
-    echo "All containers stopped"
+    echo "Backend stack stopped"
 
-# Prune stopped containers and dangling images
-clean:
+# DANGER: GLOBAL prune of every stopped container, unused network and dangling image on this Docker host, from ANY project. Never use as task cleanup.
+docker-prune-global:
     docker system prune -f
 
 # Show running containers (name / ports / status)

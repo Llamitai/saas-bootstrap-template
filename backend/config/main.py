@@ -23,6 +23,7 @@ from src.common.infrastructure.middlewares.request_tracking import RequestTracki
 from src.common.infrastructure.middlewares.security_headers import SecurityHeadersMiddleware
 from src.common.infrastructure.responses.camel_case import CamelCaseJSONResponse
 from src.common.infrastructure.services.rate_limiter import RateLimitExceededError
+from src.common.presentation.openapi import operation_id
 from src.common.settings import settings
 
 init_sentry()
@@ -37,6 +38,7 @@ app = FastAPI(
     lifespan=lifespan,
     default_response_class=CamelCaseJSONResponse,
     redirect_slashes=True,
+    generate_unique_id_function=operation_id,
 )
 app.include_router(api_router)
 

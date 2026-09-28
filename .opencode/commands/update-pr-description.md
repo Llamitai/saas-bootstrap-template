@@ -1,14 +1,14 @@
-# Update PR Description
+---
+description: Update a pull request description with the project sections
+---
 
----
-description: Update a pull request description to match the project's PR template
----
+# Update PR Description
 
 ## Task
 
-Update the specified pull request's description to follow the project's PR template format defined in @.github/pull_request_template.md.
+Update the specified pull request's description. The repository has no PR template file, so use the sections below.
 
-The template includes these sections:
+Use these sections:
 
 - Issue (with "resolve:" field)
 - Why is this change needed?
@@ -22,8 +22,8 @@ The template includes these sections:
 
 1. Check the PR number provided in the arguments
 2. Read the current PR description using `gh pr view`
-3. Reformat the content to match the template structure
-4. Keep pr_agent placeholders intact (pr_agent:summary and pr_agent:walkthrough)
+3. Reformat the content into those sections; Testing Verification lists commands, results and unverified behavior
+4. Keep existing pr_agent placeholders (pr_agent:summary, pr_agent:walkthrough) intact if present
 5. Update the PR using `gh pr edit`
 
 ### Arguments

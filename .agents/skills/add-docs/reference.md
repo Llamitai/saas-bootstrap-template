@@ -3,53 +3,44 @@
 Everything the [`SKILL.md`](SKILL.md) process needs but shouldn't inline. All paths
 are relative to the repo root.
 
+**Contents:** [Language](#language) · [1. Where pages go](#1-where-pages-go) ·
+[2. Frontmatter](#2-frontmatter-house-convention--keep-it-minimal) ·
+[3. Mermaid diagram catalog](#3-mermaid-diagram-catalog-preferred-for-anything-data-driven) ·
+[4. Static & animated SVG](#4-static--animated-svg) · [5. Other media](#5-other-media) ·
+[6. Verify & preview](#6-verify--preview) · [7. Full gotcha list](#7-full-gotcha-list)
+
 ---
 
 ## Language
 
-Apply these conventions before writing.
-
-- **Default: Spanish** — the existing content under `docs/content/docs/**` is Spanish.
-  Use that default without asking. If the request names a language ("documenta …
-  en inglés", "in English"), honor it without asking again.
-- **Translate (everything a reader sees):** frontmatter `title` and `description`; all headings;
-  prose; table headers and cell text; callouts; "where to go next" link labels; and **diagram
-  labels** — Mermaid node/edge text *and* the `<text>` in any SVG you author.
-- **Keep verbatim (never translate), in any language:**
-  - Code identifiers, function/class names, `__tablename__`s and column names, file paths.
-  - **Enum values** and other wire/string constants — `ACTIVE`, `PENDING`, `OWNER`, …
-  - **Mermaid keywords** and syntax — `erDiagram`, `flowchart TB`, `sequenceDiagram`,
-    cardinality (`||--o{`), `PK`/`FK`.
-  - URLs, slugs, and **frontmatter keys** — these are schema, not prose.
-- **Slugs/filenames stay ASCII kebab-case even for Spanish pages** — `data-model.mdx`, not
-  `modelo-de-datos-ñ.mdx`. Keep accents and ñ out of paths/URLs; they belong in the visible text.
-- **One page, one language.** Don't mix languages within a page. Match the language of the
-  pages you link to when possible — only the link *label* is yours to translate.
+Language rules (Spanish default, what to translate, what stays verbatim) live in
+[`SKILL.md`](SKILL.md#establish-the-page). Apply them before writing.
 
 ---
 
 ## 1. Where pages go
 
-All rendered pages live under **`docs/content/docs/**`** as `.mdx` files
-(one Fumadocs content source — there are no other collections).
+All pages live under **`docs/content/docs/**`** (`.mdx`, or `.md` for plain
+contracts). One docs collection plus the OpenAPI pages generated in memory under
+`referencia/api/`. Each top folder is a root folder (`"root": true`), rendered as
+a navbar tab; pick it by the reader's need (Diátaxis):
 
-| Subfolder | For | URL |
+| Folder | Need | URL |
 |---|---|---|
-| `conceptos/` | Core concepts: tenancy, auth, members, roles | `/docs/conceptos/<slug>` |
-| `arquitectura/` | Backend/frontend/docs architecture, "how it works" | `/docs/arquitectura/<slug>` |
-| `operacion/` | Running, deploying, operating the stack | `/docs/operacion/<slug>` |
+| `(empezar)/` | Tutorial: install, first tour, create a project | `/docs/<slug>` (group folder: no URL segment) |
+| `guias/<area>/` | How-to: one concrete task (`backend`, `frontend`, `documentacion`, `operacion`) | `/docs/guias/<area>/<slug>` |
+| `conceptos/` | Explanation: architecture, domain, data model | `/docs/conceptos/<slug>` |
+| `referencia/` | Exact facts: commands, contracts; `api/` is generated | `/docs/referencia/<slug>` |
+| `equipo/` | Repository contracts read by agents: profile, verification, ADRs | `/docs/equipo/<slug>` |
 
-- **Slug** = path under `content/docs`, minus extension. `content/docs/arquitectura/data-model.mdx`
-  → URL `/docs/arquitectura/data-model`. An `index.mdx` maps to the folder URL.
-- **The sidebar is `meta.json`-driven.** Each directory has a `meta.json`:
-  ```json
-  { "title": "Arquitectura", "pages": ["index", "data-model"] }
-  ```
-  Add your new page's slug to its directory's `pages` (order in the array = sidebar order).
-  A new subfolder needs its own `meta.json` AND an entry in the parent's `pages`.
-- **Never** put rendered pages in `docs/internal/**` — that tree is project-internal and not
-  loaded by the content source. (It's a good place to *read* existing ERD/architecture notes
-  while researching, though.)
+- **Slug** = path under `content/docs`, minus extension; `index` maps to the folder URL.
+- **The sidebar is `meta.json`-driven.** Add the slug to the directory's `pages`
+  (array order = sidebar order). A new subfolder needs its own `meta.json` and an
+  entry in the parent's `pages` (`"...folder"` inlines it, `"---Label---"` adds a separator).
+- **Never** hand-write endpoint pages: update the backend and run `openapi-sync`.
+- **Links:** use file-relative paths (`../equipo/verificacion.md`, `../../../../backend/README.md`).
+  A remark plugin turns content links into site URLs and other repository files
+  into links to the `origin` remote; `just agent-check` fails on a broken one.
 
 ---
 
@@ -64,11 +55,11 @@ description: Cómo se relacionan tenants…     # required by house convention (
 ---
 ```
 
-That's the whole schema in use on this site. Ordering, grouping and hiding live in
-`meta.json`, not in frontmatter — there is no `sidebar:`, `tags:`, `lastUpdated:`,
-`difficulty:` or `method:` here.
+Optional `icon:` takes a [Lucide](https://lucide.dev/icons) name shown in the sidebar.
+Ordering, grouping and hiding live in `meta.json`, not in frontmatter — there is
+no `sidebar:`, `tags:`, `lastUpdated:`, `difficulty:` or `method:` here.
 
-### Body conventions (see `docs/README.md`)
+### Body conventions (see `guias/documentacion/escribir-paginas.mdx`)
 - Open with `<Callout title="En resumen">…</Callout>` — a 1–2 sentence summary.
 - Use `##` and `###` for sections; never `#`.
 - kebab-case ASCII filenames.
@@ -81,11 +72,12 @@ That's the whole schema in use on this site. Ordering, grouping and hiding live 
 | `<Tabs>` / `<Tab>` | Alternatives (e.g. pnpm vs just, curl vs httpie) |
 | `<Accordions>` / `<Accordion>` | Collapsible FAQ / detail sections |
 | `<TypeTable type={{…}}>` | Option/field/prop enumerations with descriptions |
-| fenced ` ```mermaid ` | All data-driven diagrams (rendered client-side) |
+| fenced ` ```mermaid ` | All data-driven diagrams (`remarkMdxMermaid` turns them into `<Mermaid>`, rendered client-side) |
 
-Anything else from `fumadocs-ui/mdx` defaults (headings with anchors, code blocks with
-copy button) works out of the box. Don't import components inside the page — they're
-injected globally.
+Anything else from `fumadocs-ui/mdx` defaults (`Cards`/`Card`, headings with anchors,
+code blocks with copy button) works out of the box. Don't import components inside
+the page — they're injected globally; the only import is `lucide-react` icons for
+`<Card icon={...}>`.
 
 ---
 
@@ -102,9 +94,13 @@ render time.
 | Lifecycle, status machine, invitation states | `flowchart TD` with labeled edges — **not** `stateDiagram-v2` (see warning below) |
 | Pipeline / decision branching / layering | `flowchart TB` (or `LR`) |
 | Class / type / aggregate structure | `classDiagram` |
-| Timeline / rollout / phases | `gantt` or `timeline` |
-| Taxonomy / concept map | `mindmap` |
+| Timeline / rollout / phases | `flowchart LR` with ordered nodes, or a table |
+| Taxonomy / concept map | `flowchart TB` tree, or a table |
 | Proportions (status split) | `pie` |
+
+Use only the stable types above: `flowchart`, `erDiagram`, `sequenceDiagram`,
+`classDiagram` and `pie`. Other types (`stateDiagram-v2`, `gantt`, `timeline`,
+`mindmap`, …) can flake in the Vite dev server; see the lifecycle warning below.
 
 ### ER diagram skeleton (real core tables — verify columns before drawing)
 ````md
@@ -114,20 +110,24 @@ erDiagram
   USERS ||--o{ TENANT_USERS : "belongs via"
   TENANTS ||--o{ TENANT_USER_INVITATIONS : invites
   TENANTS ||--o{ TENANT_ROLES : defines
-  TENANT_ROLES ||--o{ TENANT_USERS : "assigned to"
+  TENANT_ROLES |o--o{ TENANT_USERS : "assigned to"
   TENANTS {
-    uuid id PK
+    uuid uuid PK
     string name
     string slug
   }
   TENANT_USERS {
-    uuid id PK
+    uuid uuid PK
     uuid tenant_id FK
     uuid user_id FK
+    uuid tenant_role_id FK "nullable"
   }
 ```
 ````
-Cardinality cheat: `||--||` one-to-one · `||--o{` one-to-many · `}o--o{` many-to-many.
+Cardinality cheat: `||--||` one-to-one · `||--o{` one-to-many · `|o--o{` optional
+parent (nullable FK) to many · `}o--o{` many-to-many. Check `nullable=` on each FK:
+`tenant_users.tenant_role_id` is nullable (`ondelete="SET NULL"`), so the role side
+is `|o`. Primary keys are the `uuid` column from the shared mixins, not `id`.
 Table names come from `__tablename__` in `backend/src/common/database/models/**` — use them verbatim.
 
 ### Sequence diagram skeleton
@@ -135,19 +135,25 @@ Table names come from `__tablename__` in `backend/src/common/database/models/**`
 ```mermaid
 sequenceDiagram
   participant B as Browser
-  participant BFF as Next.js BFF /api
+  participant BFF as Next.js proxy /api/v1
   participant API as FastAPI
   participant UC as Use case
   participant DB as Postgres
-  B->>BFF: POST /api/tenants
+  B->>BFF: POST /api/v1/tenants
   BFF->>API: POST /v1/tenants
   API->>UC: execute()
   UC->>DB: persist()
   DB-->>UC: row
   UC-->>API: entity
-  API-->>B: 201 Created
+  API-->>BFF: 201 Created
+  BFF-->>B: 201 Created
 ```
 ````
+Browser clients use base URL `/api` (`frontend/src/shared/http/client.ts`) and
+call `/v1/...`; `frontend/src/proxy.ts` forwards `/api/v1/*` to the backend's
+`/v1/*` routers. Dedicated BFF route handlers under `frontend/src/app/api/**`
+exist only for specific flows (for example `auth/*`); check which path the flow
+you document actually takes.
 
 ### State machine / lifecycle skeleton — use `flowchart`, not `stateDiagram-v2`
 > **⚠️ Prefer `flowchart` for lifecycles on this site.** Mermaid lazy-loads a *separate
@@ -160,12 +166,15 @@ sequenceDiagram
 ```mermaid
 flowchart TD
   Start([invited]) --> PENDING
-  PENDING -->|accepts| ACTIVE
+  PENDING -->|accepts| ACCEPTED
   PENDING -->|expires| EXPIRED
-  ACTIVE -->|removed| REVOKED
-  ACTIVE --> Stop([member])
+  ACCEPTED --> Stop([member])
 ```
 ````
+States come from `TenantUserInvitationStatus` in
+`backend/src/common/domain/enums/tenants.py`. The enum also declares `REVOKED`,
+but no current code path sets it; draw only transitions you find in the
+invitation use cases and repositories.
 
 ---
 
@@ -180,8 +189,10 @@ It is served as an `<img>`, so:
 **Palette** (match the site — teal primary on cool-gray, see `docs/app/app.css`):
 `#0d9488` teal-600 (primary stroke) · `#2dd4bf` teal-400 · `#ccfbf1` teal-100 (fill) ·
 `#f0fdfa` teal-50 (bg-fill) · `#f8fafc` slate-50 (canvas) · `#0f172a` slate-900 (text) ·
-`#475569` slate-600 (muted) · `#cbd5e1` slate-300 (hairline). Font:
-`ui-sans-serif, system-ui, sans-serif`. Rounded corners `rx="6"`.
+`#475569` slate-600 (muted) · `#cbd5e1` slate-300 (hairline). Font: the site's
+`--font-sans` stack, `Figtree, Geist, ui-sans-serif, system-ui, sans-serif`. An
+SVG served as `<img>` cannot load the site's web fonts, so it falls back to the
+system stack unless the font is installed locally. Rounded corners `rx="6"`.
 
 ### When to animate
 Only when **motion explains something** a static picture can't: data flowing through a
@@ -235,10 +246,12 @@ just docs build              # the gate: MDX compile + prerender of every /docs/
 just docs typecheck          # optional: react-router typegen + tsc --noEmit
 ```
 Preview a single diagram in isolation (no dev server needed). The skill dir is
-`.claude/`, `.codex/` or `.opencode/skills/add-docs` depending on the runtime you're in:
+`.claude/skills/add-docs` or `.agents/skills/add-docs` depending on the runtime you're in:
 ```bash
 node <this-skill-dir>/tools/preview-diagram.mjs docs/content/docs/<subfolder>/<slug>.mdx
-# → writes /tmp/add-docs-preview.html ; open or screenshot it
+# → writes /tmp/add-docs-preview.html by default; pass --out <path.html> to choose
+#   another file (use a scratch directory outside the repo). Needs network: the
+#   page loads Mermaid from a CDN. --help prints usage.
 ```
 
 ---
@@ -252,20 +265,17 @@ node <this-skill-dir>/tools/preview-diagram.mjs docs/content/docs/<subfolder>/<s
 - Animated SVG embedded as `<img>` ignores `<script>`. SMIL + CSS keyframes only.
 - **Exotic Mermaid types can flake in the Vite dev server** (`Failed to fetch dynamically
   imported module …/.vite/deps/…`). Model state machines as a `flowchart` instead — see
-  "State machine / lifecycle skeleton" above. Stick to `flowchart`, `erDiagram`,
-  `sequenceDiagram`, `classDiagram`, `pie`.
+  "State machine / lifecycle skeleton" above. Stick to the stable types in the catalog:
+  `flowchart`, `erDiagram`, `sequenceDiagram`, `classDiagram`, `pie`.
 - Don't add `%%{init}%%` or inline colors to Mermaid — the site theme (and its dark-mode
   re-render) overrides and clashes.
 - The build **prerenders every docs route** (`docs/react-router.config.ts`), so `just docs build`
   catches broken pages for real — a new `.mdx` file is added to the prerender list automatically.
-- Frontmatter is `title` + `description` only. Don't invent `sidebar:`, `tags:`,
-  `difficulty:` … keys from other sites' schemas.
-- Auth is optional and client-side (`VITE_DOCS_REQUIRE_AUTH`, default false) — `just docs dev`
-  serves pages without login in the default setup; for quick diagram checks use
-  `tools/preview-diagram.mjs`.
+- Frontmatter is `title` + `description` (+ optional `icon`). Don't invent `sidebar:`,
+  `tags:`, `difficulty:` … keys from other sites' schemas.
+- The site has no login; privacy, if needed, belongs to the hosting layer. For quick
+  diagram checks use `tools/preview-diagram.mjs`.
 - Keep one page = one subject. If the request spans several subjects, write several pages
   (or ask which to do first).
-- **Language is a content decision, not a code one.** Translate diagram labels too — but never
-  translate Mermaid keywords, enum values, identifiers or paths, and keep slugs/filenames ASCII
-  (no accents). Use the Spanish default without asking; honor an explicit user
-  language choice.
+- **Language:** follow the rules in [`SKILL.md`](SKILL.md#establish-the-page); translate
+  diagram labels, never Mermaid keywords, enum values, identifiers or paths.

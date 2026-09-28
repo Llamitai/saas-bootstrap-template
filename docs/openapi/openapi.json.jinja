@@ -1,0 +1,5941 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "[[ project_name ]]",
+    "description": "Multi-tenant [[ project_name ]] API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "common"
+        ],
+        "summary": "API root",
+        "operationId": "common-home",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_StatusResponse_"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sentry-debug": {
+      "get": {
+        "tags": [
+          "common"
+        ],
+        "summary": "Trigger a Sentry test error (local environments only)",
+        "description": "Raise on purpose to verify Sentry error tracking. Local environments only.",
+        "operationId": "common-sentry_debug",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/py/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness probe",
+        "description": "Liveness: the process answers HTTP. Never touches a dependency.",
+        "operationId": "health-health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/py/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness probe (PostgreSQL and Redis)",
+        "description": "Readiness: PostgreSQL answers `SELECT 1` and Redis answers `PING`.",
+        "operationId": "health-health_ready",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Register a new user",
+        "operationId": "users-register_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RegisteredUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "auth-login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserSessionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/google-login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Google Login",
+        "operationId": "auth-google_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserSessionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/reset-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "operationId": "auth-reset_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/reset-password/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password Confirm",
+        "operationId": "auth-reset_password_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh",
+        "operationId": "auth-refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserSessionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "auth-logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/session": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Session",
+        "operationId": "auth-session",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserProfileResponse_"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/me/profile": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Get current user profile",
+        "operationId": "me-get_profile",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserModel_"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Update current user profile",
+        "operationId": "me-update_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UserModel_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/me/password": {
+      "put": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Update current user password",
+        "operationId": "me-update_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/me/tenants": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Get user tenants",
+        "description": "Returns all tenants where the authenticated user is a member",
+        "operationId": "me-get_user_tenants",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_TenantModel__"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/me/tenants/{tenant_id}": {
+      "put": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Update current tenant",
+        "description": "Updates the authenticated user's current tenant",
+        "operationId": "me-update_me_tenant",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Register a new Tenant",
+        "operationId": "tenants-register_tenant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantModel_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tenants/onboard": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Onboard a new Tenant (superuser): tenant + roles + invitations + emails",
+        "operationId": "tenants-onboard_tenant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_OnboardedTenantResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tenants/{tenant_id}": {
+      "put": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Tenant",
+        "operationId": "tenants-update_tenant",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_tenants-update_tenant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantModel_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Soft-Delete Tenant",
+        "operationId": "tenants-soft_delete_tenant",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AcceptedResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/{tenant_id}/settings": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Tenant Settings",
+        "operationId": "tenants-get_tenant_settings",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantSettingsResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Tenant Name",
+        "operationId": "tenants-update_tenant_settings",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantSettingsResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/{tenant_id}/settings/avatar": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Tenant Avatar",
+        "operationId": "tenants-update_tenant_avatar",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_tenants-update_tenant_avatar"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantSettingsResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/permissions/missing": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Missing Permissions",
+        "operationId": "tenants-get_missing_permissions",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_PermissionResponse__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/users/stats": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Tenant User Stats",
+        "operationId": "tenants-get_tenant_user_stats",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserStatsModel_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/users": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Tenant Users",
+        "operationId": "tenants-get_tenant_users",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "statuses",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Statuses"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_tenants-get_tenant_users"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageEnvelope_TenantUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/invitations": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Invite members to the current tenant",
+        "operationId": "tenants-create_tenant_invitations",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteMembersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CreatedInvitationsResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "List pending invitations for the current tenant",
+        "operationId": "tenants-list_tenant_invitations",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_TenantUserInvitationResponse__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/invitations/{invitation_id}": {
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Cancel a pending invitation (sets it to EXPIRED)",
+        "operationId": "tenants-cancel_tenant_invitation",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Invitation UUID",
+              "title": "Invitation Id"
+            },
+            "description": "Invitation UUID"
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserInvitationResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/users/{tenant_user_id}": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Retrieve Tenant User Detail",
+        "operationId": "tenants-get_tenant_user",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant User Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Tenant User",
+        "operationId": "tenants-update_tenant_user",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant User Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Remove Tenant User",
+        "operationId": "tenants-delete_tenant_user",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant User Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/users/{tenant_user_id}/send-password-reset": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Email a password-reset link to a tenant member",
+        "operationId": "tenants-send_member_password_reset",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "TenantUser UUID",
+              "title": "Tenant User Id"
+            },
+            "description": "TenantUser UUID"
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_EmailResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/users/{tenant_user_id}/photo": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Upload a profile photo for a tenant member",
+        "operationId": "tenants-update_member_photo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant User Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_tenants-update_member_photo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/roles": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Tenant Roles",
+        "operationId": "tenants-get_tenant_roles",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageEnvelope_TenantRoleResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Create Tenant Role",
+        "operationId": "tenants-create_tenant_role",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRole"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantRoleResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/roles/bootstrap": {
+      "post": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Bootstrap Default Tenant Roles",
+        "operationId": "tenants-bootstrap_tenant_roles",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_BootstrappedRolesResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenants/roles/{role_id}": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Get Tenant Role Detail",
+        "operationId": "tenants-get_tenant_role",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantRoleResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Update Tenant Role",
+        "operationId": "tenants-update_tenant_role",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantRole"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantRoleResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Delete Tenant Role",
+        "operationId": "tenants-delete_tenant_role",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "X-Tenant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{token}": {
+      "get": {
+        "tags": [
+          "invitations"
+        ],
+        "summary": "Lookup a pending invitation by token (public)",
+        "operationId": "invitations-get_invitation_by_token",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_InvitationViewResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{token}/accept": {
+      "post": {
+        "tags": [
+          "invitations"
+        ],
+        "summary": "Accept an invitation (single-use). Sets password + returns session.",
+        "operationId": "invitations-accept_invitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TenantUserSessionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/users/set-password": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Set User Password",
+        "operationId": "tasks-set_user_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TaskResultResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/api-keys/{api_key_id}/directus/hash-key": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Hash Directus Api Key",
+        "description": "Hashes the raw secret of a Directus API key.",
+        "operationId": "tasks-hash_directus_api_key",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Api Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ApiKeyResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptInvitationRequest": {
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          }
+        },
+        "type": "object",
+        "title": "AcceptInvitationRequest"
+      },
+      "AcceptedResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "AcceptedResponse"
+      },
+      "ApiKeyResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "keyPrefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyprefix"
+          },
+          "tenantIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenantids"
+          },
+          "isGeneralScope": {
+            "type": "boolean",
+            "title": "Isgeneralscope"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionResponse"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
+          "isRevoked": {
+            "type": "boolean",
+            "title": "Isrevoked"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "keyPrefix",
+          "tenantIds",
+          "isGeneralScope",
+          "permissions",
+          "isRevoked",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "ApiKeyResponse",
+        "description": "ApiKeyPresenter."
+      },
+      "Body_tenants-get_tenant_users": {
+        "properties": {
+          "tenantIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenantids"
+          },
+          "excludeIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excludeids"
+          }
+        },
+        "type": "object",
+        "title": "Body_tenants-get_tenant_users"
+      },
+      "Body_tenants-update_member_photo": {
+        "properties": {
+          "photo": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Photo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "photo"
+        ],
+        "title": "Body_tenants-update_member_photo"
+      },
+      "Body_tenants-update_tenant": {
+        "properties": {
+          "logo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CountryIsoCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrencyCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "Body_tenants-update_tenant"
+      },
+      "Body_tenants-update_tenant_avatar": {
+        "properties": {
+          "avatar": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Avatar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "avatar"
+        ],
+        "title": "Body_tenants-update_tenant_avatar"
+      },
+      "BootstrappedRolesResponse": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TenantRoleResponse"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "roles"
+        ],
+        "title": "BootstrappedRolesResponse"
+      },
+      "CountryIsoCode": {
+        "type": "string",
+        "enum": [
+          "AC",
+          "AD",
+          "AE",
+          "AF",
+          "AG",
+          "AI",
+          "AL",
+          "AM",
+          "AO",
+          "AQ",
+          "AR",
+          "AS",
+          "AT",
+          "AU",
+          "AW",
+          "AX",
+          "AZ",
+          "BA",
+          "BB",
+          "BD",
+          "BE",
+          "BF",
+          "BG",
+          "BH",
+          "BI",
+          "BJ",
+          "BL",
+          "BM",
+          "BN",
+          "BO",
+          "BQ",
+          "BR",
+          "BS",
+          "BT",
+          "BV",
+          "BW",
+          "BY",
+          "BZ",
+          "CA",
+          "CV",
+          "CC",
+          "CD",
+          "CF",
+          "CG",
+          "CH",
+          "CI",
+          "CK",
+          "CL",
+          "CM",
+          "CN",
+          "CO",
+          "CP",
+          "CR",
+          "CU",
+          "CV",
+          "CW",
+          "CX",
+          "CY",
+          "CZ",
+          "DE",
+          "DG",
+          "DJ",
+          "DK",
+          "DM",
+          "DO",
+          "DZ",
+          "EA",
+          "EC",
+          "EE",
+          "EG",
+          "EH",
+          "ER",
+          "ES",
+          "ET",
+          "EU",
+          "FI",
+          "FJ",
+          "FK",
+          "FM",
+          "FO",
+          "FR",
+          "FX",
+          "GA",
+          "GB",
+          "GD",
+          "GE",
+          "GF",
+          "GG",
+          "GH",
+          "GI",
+          "GL",
+          "GM",
+          "GN",
+          "GP",
+          "GQ",
+          "GR",
+          "GS",
+          "GT",
+          "GU",
+          "GW",
+          "GY",
+          "HK",
+          "HM",
+          "HN",
+          "HR",
+          "HT",
+          "HU",
+          "IC",
+          "ID",
+          "IE",
+          "IL",
+          "IM",
+          "IN",
+          "IO",
+          "IQ",
+          "IR",
+          "IS",
+          "IT",
+          "JE",
+          "JM",
+          "JO",
+          "JP",
+          "KE",
+          "KG",
+          "LA",
+          "KH",
+          "KI",
+          "KM",
+          "KN",
+          "KP",
+          "KR",
+          "KW",
+          "KY",
+          "KZ",
+          "LA",
+          "LB",
+          "LC",
+          "LI",
+          "LK",
+          "LR",
+          "LS",
+          "LT",
+          "LU",
+          "LV",
+          "LY",
+          "MA",
+          "MC",
+          "MD",
+          "ME",
+          "MF",
+          "MG",
+          "MH",
+          "MK",
+          "ML",
+          "MM",
+          "MN",
+          "MO",
+          "MP",
+          "MQ",
+          "MR",
+          "MS",
+          "MT",
+          "MU",
+          "MV",
+          "MW",
+          "MX",
+          "MY",
+          "MZ",
+          "NA",
+          "NC",
+          "NE",
+          "NF",
+          "NG",
+          "NI",
+          "NL",
+          "AN",
+          "NO",
+          "NP",
+          "NR",
+          "NU",
+          "NZ",
+          "OM",
+          "PA",
+          "PE",
+          "PF",
+          "PG",
+          "PH",
+          "PK",
+          "PL",
+          "PM",
+          "PN",
+          "PR",
+          "PS",
+          "PT",
+          "PW",
+          "PY",
+          "QA",
+          "RE",
+          "RO",
+          "RS",
+          "RU",
+          "RW",
+          "SA",
+          "SB",
+          "SC",
+          "SD",
+          "SE",
+          "SG",
+          "SH",
+          "SI",
+          "SJ",
+          "SK",
+          "SL",
+          "SM",
+          "SN",
+          "SO",
+          "SR",
+          "SS",
+          "ST",
+          "SU",
+          "SV",
+          "SX",
+          "SY",
+          "SZ",
+          "TA",
+          "TC",
+          "TD",
+          "TF",
+          "TG",
+          "TH",
+          "TL",
+          "TJ",
+          "TK",
+          "TL",
+          "TM",
+          "TN",
+          "TO",
+          "TR",
+          "TT",
+          "TV",
+          "TW",
+          "TZ",
+          "UA",
+          "UG",
+          "UK",
+          "UM",
+          "US",
+          "UY",
+          "UZ",
+          "VA",
+          "VC",
+          "VE",
+          "VG",
+          "VI",
+          "VN",
+          "VU",
+          "WF",
+          "WS",
+          "YE",
+          "YT",
+          "ZA",
+          "ZM",
+          "ZW",
+          "XX"
+        ],
+        "title": "CountryIsoCode"
+      },
+      "CreateTenantRole": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantRoleStatus",
+            "default": "ACTIVE"
+          },
+          "iconUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iconurl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateTenantRole"
+      },
+      "CreatedInvitationsResponse": {
+        "properties": {
+          "invitations": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUserInvitationResponse"
+            },
+            "type": "array",
+            "title": "Invitations"
+          },
+          "skippedExistingMembers": {
+            "items": {
+              "$ref": "#/components/schemas/EmailResponse"
+            },
+            "type": "array",
+            "title": "Skippedexistingmembers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invitations",
+          "skippedExistingMembers"
+        ],
+        "title": "CreatedInvitationsResponse"
+      },
+      "CurrencyCode": {
+        "type": "string",
+        "enum": [
+          "AED",
+          "AFN",
+          "ALL",
+          "AMD",
+          "ANG",
+          "AOA",
+          "ARS",
+          "AUD",
+          "AWG",
+          "AZN",
+          "BAM",
+          "BBD",
+          "BDT",
+          "BGN",
+          "BHD",
+          "BIF",
+          "BMD",
+          "BND",
+          "BOB",
+          "BOV",
+          "BRL",
+          "BSD",
+          "BTN",
+          "BWP",
+          "BYR",
+          "BYN",
+          "BZD",
+          "CAD",
+          "CDF",
+          "CHE",
+          "CHF",
+          "CHW",
+          "CLF",
+          "CLP",
+          "CNY",
+          "COP",
+          "COU",
+          "CRC",
+          "CUC",
+          "CUP",
+          "CVE",
+          "CZK",
+          "DJF",
+          "DKK",
+          "DOP",
+          "DZD",
+          "EGP",
+          "ERN",
+          "ETB",
+          "EUR",
+          "STN",
+          "FJD",
+          "FKP",
+          "GBP",
+          "GEL",
+          "GHS",
+          "GIP",
+          "GMD",
+          "GNF",
+          "GTQ",
+          "GGP",
+          "GYD",
+          "HKD",
+          "HNL",
+          "HRK",
+          "HTG",
+          "HUF",
+          "IDR",
+          "ILS",
+          "INR",
+          "IQD",
+          "IRR",
+          "ISK",
+          "JMD",
+          "JOD",
+          "JPY",
+          "KES",
+          "KGS",
+          "KHR",
+          "KMF",
+          "KPW",
+          "KRW",
+          "KWD",
+          "KYD",
+          "KZT",
+          "LAK",
+          "LBP",
+          "LKR",
+          "LRD",
+          "LSL",
+          "LTL",
+          "LVL",
+          "LYD",
+          "MAD",
+          "MDL",
+          "MGA",
+          "MKD",
+          "MMK",
+          "MNT",
+          "MOP",
+          "MRO",
+          "MUR",
+          "MVR",
+          "MWK",
+          "MXN",
+          "MXV",
+          "MYR",
+          "MZN",
+          "NAD",
+          "NGN",
+          "NIO",
+          "NOK",
+          "NPR",
+          "NZD",
+          "OMR",
+          "PAB",
+          "PEN",
+          "PGK",
+          "PHP",
+          "PKR",
+          "PLN",
+          "PYG",
+          "QAR",
+          "RON",
+          "RSD",
+          "RUB",
+          "RWF",
+          "SAR",
+          "SBD",
+          "SCR",
+          "SDG",
+          "SEK",
+          "SGD",
+          "SHP",
+          "SLL",
+          "SOS",
+          "SRD",
+          "SSP",
+          "STD",
+          "SYP",
+          "SZL",
+          "THB",
+          "TJS",
+          "TMT",
+          "TND",
+          "TOP",
+          "TRY",
+          "TTD",
+          "TWD",
+          "TZS",
+          "UAH",
+          "UGX",
+          "USD",
+          "USN",
+          "USS",
+          "UYI",
+          "UYU",
+          "UZS",
+          "VEF",
+          "VND",
+          "VUV",
+          "WST",
+          "XAF",
+          "XAG",
+          "XAU",
+          "XBA",
+          "XBB",
+          "XBC",
+          "XBD",
+          "XCD",
+          "XDR",
+          "XFU",
+          "XOF",
+          "XPD",
+          "XPF",
+          "XPT",
+          "XTS",
+          "XXX",
+          "YER",
+          "ZAR",
+          "ZMW",
+          "ZWL"
+        ],
+        "title": "CurrencyCode"
+      },
+      "EmailAddressModel": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "title": "Isverified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "uuid",
+          "isVerified"
+        ],
+        "title": "EmailAddressModel"
+      },
+      "EmailAddressResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "title": "Isverified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "email",
+          "isVerified"
+        ],
+        "title": "EmailAddressResponse",
+        "description": "EmailAddressPresenter."
+      },
+      "EmailResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "EmailResponse"
+      },
+      "Envelope_AcceptedResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AcceptedResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[AcceptedResponse]"
+      },
+      "Envelope_ApiKeyResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ApiKeyResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[ApiKeyResponse]"
+      },
+      "Envelope_BootstrappedRolesResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BootstrappedRolesResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[BootstrappedRolesResponse]"
+      },
+      "Envelope_CreatedInvitationsResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedInvitationsResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[CreatedInvitationsResponse]"
+      },
+      "Envelope_EmailResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmailResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[EmailResponse]"
+      },
+      "Envelope_InvitationViewResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InvitationViewResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[InvitationViewResponse]"
+      },
+      "Envelope_OnboardedTenantResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OnboardedTenantResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[OnboardedTenantResponse]"
+      },
+      "Envelope_RegisteredUserResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegisteredUserResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[RegisteredUserResponse]"
+      },
+      "Envelope_StatusResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StatusResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[StatusResponse]"
+      },
+      "Envelope_TaskResultResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskResultResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TaskResultResponse]"
+      },
+      "Envelope_TenantModel_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantModel"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantModel]"
+      },
+      "Envelope_TenantRoleResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantRoleResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantRoleResponse]"
+      },
+      "Envelope_TenantSettingsResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantSettingsResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantSettingsResponse]"
+      },
+      "Envelope_TenantUserInvitationResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantUserInvitationResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantUserInvitationResponse]"
+      },
+      "Envelope_TenantUserProfileResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantUserProfileResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantUserProfileResponse]"
+      },
+      "Envelope_TenantUserResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantUserResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantUserResponse]"
+      },
+      "Envelope_TenantUserSessionResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantUserSessionResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantUserSessionResponse]"
+      },
+      "Envelope_TenantUserStatsModel_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantUserStatsModel"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[TenantUserStatsModel]"
+      },
+      "Envelope_UserModel_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserModel"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[UserModel]"
+      },
+      "Envelope_list_PermissionResponse__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[list[PermissionResponse[% raw %]]][% endraw %]"
+      },
+      "Envelope_list_TenantModel__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantModel"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[list[TenantModel[% raw %]]][% endraw %]"
+      },
+      "Envelope_list_TenantUserInvitationResponse__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUserInvitationResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "timestamp"
+        ],
+        "title": "Envelope[list[TenantUserInvitationResponse[% raw %]]][% endraw %]"
+      },
+      "GoogleLoginRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "GoogleLoginRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "InvitationViewResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "tenantName": {
+            "type": "string",
+            "title": "Tenantname"
+          },
+          "roleName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rolename"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "requiresPassword": {
+            "type": "boolean",
+            "title": "Requirespassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "tenantName",
+          "roleName",
+          "expiresAt",
+          "requiresPassword"
+        ],
+        "title": "InvitationViewResponse",
+        "description": "InvitationViewPresenter."
+      },
+      "InviteMemberRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "roleSlug": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Roleslug",
+            "default": "member"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "InviteMemberRequest"
+      },
+      "InviteMembersRequest": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/InviteMemberRequest"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "title": "InviteMembersRequest"
+      },
+      "JwtSessionModel": {
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "title": "Accesstoken"
+          },
+          "refreshToken": {
+            "type": "string",
+            "title": "Refreshtoken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accessToken",
+          "refreshToken"
+        ],
+        "title": "JwtSessionModel"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "MessageResponse"
+      },
+      "OnboardTenantRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "countryCode": {
+            "$ref": "#/components/schemas/CountryIsoCode",
+            "default": "MX"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/OnboardingMemberRequest"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "skipEmail": {
+            "type": "boolean",
+            "title": "Skipemail",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "OnboardTenantRequest"
+      },
+      "OnboardedTenantResponse": {
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/TenantPublicResponse"
+          },
+          "invitations": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUserInvitationResponse"
+            },
+            "type": "array",
+            "title": "Invitations"
+          },
+          "skippedExistingMembers": {
+            "items": {
+              "$ref": "#/components/schemas/EmailResponse"
+            },
+            "type": "array",
+            "title": "Skippedexistingmembers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant",
+          "invitations",
+          "skippedExistingMembers"
+        ],
+        "title": "OnboardedTenantResponse"
+      },
+      "OnboardingMemberRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "roleSlug": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Roleslug",
+            "default": "member"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "OnboardingMemberRequest"
+      },
+      "PageEnvelope_TenantRoleResponse_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantRoleResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "pagination",
+          "timestamp"
+        ],
+        "title": "PageEnvelope[TenantRoleResponse]"
+      },
+      "PageEnvelope_TenantUserResponse_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantUserResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "pagination",
+          "timestamp"
+        ],
+        "title": "PageEnvelope[TenantUserResponse]"
+      },
+      "PaginationResponse": {
+        "properties": {
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nextCursor",
+          "limit"
+        ],
+        "title": "PaginationResponse"
+      },
+      "PermissionPayload": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "PermissionPayload"
+      },
+      "PermissionResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "PermissionResponse"
+      },
+      "PermissionsRequest": {
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionPayload"
+            },
+            "type": "array",
+            "title": "Permissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "permissions"
+        ],
+        "title": "PermissionsRequest"
+      },
+      "PhoneNumberModel": {
+        "properties": {
+          "dialCode": {
+            "type": "integer",
+            "title": "Dialcode"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "title": "Phonenumber"
+          },
+          "isoCode": {
+            "$ref": "#/components/schemas/CountryIsoCode"
+          },
+          "prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix"
+          },
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "title": "Isverified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dialCode",
+          "phoneNumber",
+          "isoCode",
+          "prefix",
+          "uuid",
+          "isVerified"
+        ],
+        "title": "PhoneNumberModel"
+      },
+      "PhoneNumberRequest": {
+        "properties": {
+          "dialCode": {
+            "type": "integer",
+            "title": "Dialcode"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "title": "Phonenumber"
+          },
+          "isoCode": {
+            "$ref": "#/components/schemas/CountryIsoCode"
+          },
+          "prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dialCode",
+          "phoneNumber",
+          "isoCode"
+        ],
+        "title": "PhoneNumberRequest",
+        "description": "RawPhoneNumber as a request body fragment (camelCase in OpenAPI)."
+      },
+      "PhoneNumberResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "dialCode": {
+            "type": "integer",
+            "title": "Dialcode"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "title": "Phonenumber"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "title": "Isverified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "dialCode",
+          "phoneNumber",
+          "isVerified"
+        ],
+        "title": "PhoneNumberResponse",
+        "description": "PhoneNumberPresenter."
+      },
+      "RawEmailAddress": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "RawEmailAddress"
+      },
+      "ReadinessChecks": {
+        "properties": {
+          "database": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "title": "Database"
+          },
+          "redis": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "title": "Redis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "database",
+          "redis"
+        ],
+        "title": "ReadinessChecks"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "ReadinessResponse"
+      },
+      "RegisterTenantRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "countryCode": {
+            "$ref": "#/components/schemas/CountryIsoCode",
+            "default": "MX"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RegisterTenantRequest"
+      },
+      "RegisterUserRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterUserRequest"
+      },
+      "RegisteredUserResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "emailAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmailAddressResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "username",
+          "firstName",
+          "lastName",
+          "emailAddress"
+        ],
+        "title": "RegisteredUserResponse",
+        "description": "RegisteredUserPresenter."
+      },
+      "ResetPasswordConfirmRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "ResetPasswordConfirmRequest"
+      },
+      "ResetPasswordRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ResetPasswordRequest"
+      },
+      "SessionUserResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneNumberModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmailAddressModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "isSuperuser": {
+            "type": "boolean",
+            "title": "Issuperuser"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "username",
+          "firstName",
+          "lastName",
+          "phoneNumber",
+          "emailAddress",
+          "photoUrl",
+          "isSuperuser"
+        ],
+        "title": "SessionUserResponse",
+        "description": "UserPresenter."
+      },
+      "SetUserPasswordRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Userid"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "password"
+        ],
+        "title": "SetUserPasswordRequest"
+      },
+      "SimpleTenantRoleResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantRoleStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "status"
+        ],
+        "title": "SimpleTenantRoleResponse",
+        "description": "SimpleTenantRolePresenter."
+      },
+      "StatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StatusResponse"
+      },
+      "TaskResultResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "TaskResultResponse"
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "SUCCESS",
+          "FAILURE"
+        ],
+        "title": "TaskStatus"
+      },
+      "TenantMetaRoleResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantRoleStatus"
+          },
+          "isOwner": {
+            "type": "boolean",
+            "title": "Isowner"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionResponse"
+            },
+            "type": "array",
+            "title": "Permissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "isOwner",
+          "permissions"
+        ],
+        "title": "TenantMetaRoleResponse",
+        "description": "TenantMetaRolePresenter."
+      },
+      "TenantModel": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownerid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "timeZone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeZone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CountryIsoCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currencyCode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrencyCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logourl"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatus"
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "title": "Isdeleted"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "ownerId",
+          "name",
+          "slug",
+          "timeZone",
+          "countryCode",
+          "currencyCode",
+          "logoUrl",
+          "status",
+          "isDeleted",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "TenantModel",
+        "description": "`Tenant.model_dump()` as rendered by the endpoints that still return it."
+      },
+      "TenantPublicResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "timeZone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "countryCode": {
+            "type": "string",
+            "title": "Countrycode"
+          },
+          "currencyCode": {
+            "type": "string",
+            "title": "Currencycode"
+          },
+          "logoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logourl"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "slug",
+          "timeZone",
+          "countryCode",
+          "currencyCode",
+          "logoUrl",
+          "status"
+        ],
+        "title": "TenantPublicResponse",
+        "description": "TenantPublicPresenter."
+      },
+      "TenantRoleModel": {
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenantid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantRoleStatus"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "isOwner": {
+            "type": "boolean",
+            "title": "Isowner"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
+          "iconUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iconurl"
+          },
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "createdAt",
+          "updatedAt",
+          "tenantId",
+          "name",
+          "status",
+          "slug",
+          "isOwner",
+          "permissions",
+          "iconUrl",
+          "uuid"
+        ],
+        "title": "TenantRoleModel"
+      },
+      "TenantRoleResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantRoleStatus"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionResponse"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
+          "iconUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iconurl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "slug",
+          "status",
+          "permissions",
+          "iconUrl"
+        ],
+        "title": "TenantRoleResponse",
+        "description": "TenantRolePresenter."
+      },
+      "TenantRoleStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "title": "TenantRoleStatus"
+      },
+      "TenantSettingsResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tenantId": {
+            "type": "string",
+            "title": "Tenantid"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "tenantId",
+          "avatar"
+        ],
+        "title": "TenantSettingsResponse",
+        "description": "TenantSettingsPresenter. `tenantId` carries the tenant slug."
+      },
+      "TenantStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "PENDING",
+          "INACTIVE",
+          "SUSPENDED"
+        ],
+        "title": "TenantStatus"
+      },
+      "TenantUserInvitationResponse": {
+        "properties": {
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "tenantId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenantid"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "tenantRoleId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenantroleid"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantUserInvitationStatus"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "acceptedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptedat"
+          },
+          "createdById": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbyid"
+          },
+          "requiresPassword": {
+            "type": "boolean",
+            "title": "Requirespassword"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "tenantId",
+          "email",
+          "tenantRoleId",
+          "token",
+          "status",
+          "expiresAt",
+          "acceptedAt",
+          "createdById",
+          "requiresPassword",
+          "createdAt"
+        ],
+        "title": "TenantUserInvitationResponse",
+        "description": "TenantUserInvitationPresenter."
+      },
+      "TenantUserInvitationStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACCEPTED",
+          "EXPIRED",
+          "REVOKED"
+        ],
+        "title": "TenantUserInvitationStatus"
+      },
+      "TenantUserProfileResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/SessionUserResponse"
+          },
+          "tenant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantPublicResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantRole": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantMetaRoleResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "tenant",
+          "tenantRole"
+        ],
+        "title": "TenantUserProfileResponse",
+        "description": "TenantUserProfilePresenter."
+      },
+      "TenantUserResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneNumberResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmailAddressResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isOwner": {
+            "type": "boolean",
+            "title": "Isowner"
+          },
+          "isSupport": {
+            "type": "boolean",
+            "title": "Issupport"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantUserStatus"
+          },
+          "tenantRole": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimpleTenantRoleResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "firstName",
+          "lastName",
+          "phoneNumber",
+          "emailAddress",
+          "isOwner",
+          "isSupport",
+          "photoUrl",
+          "status",
+          "tenantRole",
+          "createdAt"
+        ],
+        "title": "TenantUserResponse",
+        "description": "TenantUserPresenter."
+      },
+      "TenantUserSessionResponse": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/JwtSessionModel"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SessionUserResponse"
+          },
+          "tenant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantPublicResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantRole": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantMetaRoleResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "session",
+          "user",
+          "tenant",
+          "tenantRole"
+        ],
+        "title": "TenantUserSessionResponse",
+        "description": "TenantUserSessionPresenter."
+      },
+      "TenantUserStatsModel": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "active": {
+            "type": "integer",
+            "title": "Active"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "inactive": {
+            "type": "integer",
+            "title": "Inactive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "active",
+          "pending",
+          "inactive"
+        ],
+        "title": "TenantUserStatsModel",
+        "description": "`TenantUserStats.model_dump()` as rendered by the stats endpoint."
+      },
+      "TenantUserStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "title": "TenantUserStatus"
+      },
+      "TimeZone": {
+        "type": "string",
+        "enum": [
+          "UTC",
+          "America/Mexico_City",
+          "Mexico/BajaNorte",
+          "Mexico/BajaSur",
+          "Mexico/General",
+          "America/La_Paz",
+          "Asia/Kabul",
+          "Europe/Mariehamn",
+          "Europe/Tirane",
+          "Africa/Algiers",
+          "Pacific/Pago_Pago",
+          "Africa/Luanda",
+          "America/Anguilla",
+          "Antarctica/McMurdo",
+          "America/Antigua",
+          "America/Argentina/Buenos_Aires",
+          "Asia/Yerevan",
+          "America/Aruba",
+          "Australia/Sydney",
+          "Europe/Vienna",
+          "Asia/Baku",
+          "America/Nassau",
+          "Asia/Bahrain",
+          "Asia/Dhaka",
+          "America/Barbados",
+          "Europe/Minsk",
+          "Europe/Brussels",
+          "America/Belize",
+          "Africa/Porto-Novo",
+          "Atlantic/Bermuda",
+          "Asia/Thimphu",
+          "Europe/Sarajevo",
+          "Africa/Gaborone",
+          "Antarctica/Troll",
+          "America/Sao_Paulo",
+          "Indian/Chagos",
+          "Asia/Brunei",
+          "Europe/Sofia",
+          "Africa/Ouagadougou",
+          "Africa/Bujumbura",
+          "Asia/Phnom_Penh",
+          "Africa/Douala",
+          "America/Toronto",
+          "Atlantic/Cape_Verde",
+          "America/Cayman",
+          "Africa/Bangui",
+          "Africa/Ndjamena",
+          "America/Santiago",
+          "Asia/Shanghai",
+          "Asia/Perth",
+          "America/Bogota",
+          "Indian/Comoro",
+          "Africa/Brazzaville",
+          "Africa/Kinshasa",
+          "Pacific/Rarotonga",
+          "America/Costa_Rica",
+          "Europe/Zagreb",
+          "America/Havana",
+          "Asia/Nicosia",
+          "Europe/Prague",
+          "Europe/Copenhagen",
+          "Africa/Djibouti",
+          "America/Dominica",
+          "America/Santo_Domingo",
+          "America/Guayaquil",
+          "Africa/Cairo",
+          "America/El_Salvador",
+          "Africa/Malabo",
+          "Africa/Asmara",
+          "Europe/Tallinn",
+          "Africa/Addis_Ababa",
+          "Atlantic/Stanley",
+          "Atlantic/Faroe",
+          "Pacific/Fiji",
+          "Europe/Helsinki",
+          "Europe/Paris",
+          "America/Cayenne",
+          "Pacific/Tahiti",
+          "Indian/Kerguelen",
+          "Africa/Libreville",
+          "Africa/Banjul",
+          "Asia/Tbilisi",
+          "Europe/Berlin",
+          "Africa/Accra",
+          "Europe/Gibraltar",
+          "Europe/Athens",
+          "America/Godthab",
+          "America/Grenada",
+          "America/Guadeloupe",
+          "Pacific/Guam",
+          "America/Guatemala",
+          "Europe/Guernsey",
+          "Africa/Conakry",
+          "Africa/Bissau",
+          "America/Guyana",
+          "America/Port-au-Prince",
+          "Europe/Vatican",
+          "America/Tegucigalpa",
+          "Asia/Hong_Kong",
+          "Europe/Budapest",
+          "Atlantic/Reykjavik",
+          "Asia/Kolkata",
+          "Asia/Jakarta",
+          "Asia/Tehran",
+          "Asia/Baghdad",
+          "Europe/Dublin",
+          "Asia/Jerusalem",
+          "Europe/Rome",
+          "America/Jamaica",
+          "Asia/Tokyo",
+          "Europe/London",
+          "Asia/Amman",
+          "Asia/Almaty",
+          "Africa/Nairobi",
+          "Pacific/Tarawa",
+          "Asia/Pyongyang",
+          "Asia/Seoul",
+          "Asia/Kuwait",
+          "Asia/Bishkek",
+          "Asia/Vientiane",
+          "Europe/Riga",
+          "Asia/Beirut",
+          "Africa/Maseru",
+          "Africa/Monrovia",
+          "Africa/Tripoli",
+          "Europe/Vaduz",
+          "Europe/Vilnius",
+          "Europe/Luxembourg",
+          "Asia/Macau",
+          "Europe/Skopje",
+          "Indian/Antananarivo",
+          "Africa/Blantyre",
+          "Asia/Kuala_Lumpur",
+          "Indian/Maldives",
+          "Africa/Bamako",
+          "Europe/Malta",
+          "Pacific/Majuro",
+          "America/Martinique",
+          "Africa/Nouakchott",
+          "Indian/Mauritius",
+          "Indian/Mayotte",
+          "America/Mexico_City",
+          "Pacific/Chuuk",
+          "Europe/Chisinau",
+          "Europe/Monaco",
+          "Asia/Ulaanbaatar",
+          "Europe/Podgorica",
+          "America/Montserrat",
+          "Africa/Casablanca",
+          "Africa/Maputo",
+          "Asia/Yangon",
+          "Africa/Windhoek",
+          "Pacific/Nauru",
+          "Asia/Kathmandu",
+          "Europe/Amsterdam",
+          "America/Curacao",
+          "Pacific/Noumea",
+          "Pacific/Auckland",
+          "America/Managua",
+          "Africa/Niamey",
+          "Africa/Lagos",
+          "Pacific/Niue",
+          "Pacific/Norfolk",
+          "Pacific/Saipan",
+          "Europe/Oslo",
+          "Asia/Muscat",
+          "Asia/Karachi",
+          "Pacific/Palau",
+          "Asia/Gaza",
+          "America/Panama",
+          "Pacific/Port_Moresby",
+          "America/Asuncion",
+          "America/Lima",
+          "Asia/Manila",
+          "Pacific/Pitcairn",
+          "Europe/Warsaw",
+          "Europe/Lisbon",
+          "America/Puerto_Rico",
+          "Asia/Qatar",
+          "Indian/Reunion",
+          "Europe/Bucharest",
+          "Europe/Moscow",
+          "Africa/Kigali",
+          "Africa/Ascension",
+          "America/St_Kitts",
+          "America/St_Lucia",
+          "America/Miquelon",
+          "America/St_Vincent",
+          "Pacific/Apia",
+          "Europe/San_Marino",
+          "Africa/Sao_Tome",
+          "Asia/Riyadh",
+          "Africa/Dakar",
+          "Europe/Belgrade",
+          "Indian/Mahe",
+          "Africa/Freetown",
+          "Asia/Singapore",
+          "Europe/Bratislava",
+          "Europe/Ljubljana",
+          "Pacific/Guadalcanal",
+          "Africa/Mogadishu",
+          "Africa/Johannesburg",
+          "Atlantic/South_Georgia",
+          "Europe/Madrid",
+          "Asia/Colombo",
+          "Africa/Khartoum",
+          "America/Paramaribo",
+          "Arctic/Longyearbyen",
+          "Africa/Mbabane",
+          "Europe/Stockholm",
+          "Europe/Zurich",
+          "Asia/Damascus",
+          "Asia/Taipei",
+          "Asia/Dushanbe",
+          "Africa/Dar_es_Salaam",
+          "Asia/Bangkok",
+          "Asia/Dili",
+          "Africa/Lome",
+          "Pacific/Fakaofo",
+          "Pacific/Tongatapu",
+          "America/Port_of_Spain",
+          "Africa/Tunis",
+          "Europe/Istanbul",
+          "Asia/Ashgabat",
+          "America/Grand_Turk",
+          "Pacific/Funafuti",
+          "Africa/Kampala",
+          "Europe/Kiev",
+          "Asia/Dubai",
+          "America/New_York",
+          "America/Montevideo",
+          "Asia/Tashkent",
+          "Pacific/Efate",
+          "America/Caracas",
+          "Asia/Ho_Chi_Minh",
+          "America/Tortola",
+          "America/St_Thomas",
+          "Pacific/Wallis",
+          "Africa/El_Aaiun",
+          "Asia/Aden",
+          "Africa/Lusaka",
+          "Africa/Harare"
+        ],
+        "title": "TimeZone"
+      },
+      "UpdatePasswordRequest": {
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "title": "Currentpassword"
+          },
+          "newPassword": {
+            "type": "string",
+            "title": "Newpassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "title": "UpdatePasswordRequest"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "emailAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawEmailAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneNumberRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "UpdateProfileRequest"
+      },
+      "UpdateTenantRole": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantRoleStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iconUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iconurl"
+          }
+        },
+        "type": "object",
+        "title": "UpdateTenantRole"
+      },
+      "UpdateTenantSettingsRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "UpdateTenantSettingsRequest"
+      },
+      "UpdateTenantUserRequest": {
+        "properties": {
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantUserStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantRoleId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenantroleid"
+          },
+          "isOwner": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isowner"
+          },
+          "isSupport": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issupport"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneNumberRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "UpdateTenantUserRequest"
+      },
+      "UserLogoutRequest": {
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "title": "Refreshtoken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "title": "UserLogoutRequest"
+      },
+      "UserModel": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneNumberModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmailAddressModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentTenantId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currenttenantid"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantRoleModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "title": "Haspassword"
+          },
+          "isSuperuser": {
+            "type": "boolean",
+            "title": "Issuperuser"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "username",
+          "firstName",
+          "lastName",
+          "phoneNumber",
+          "emailAddress",
+          "currentTenantId",
+          "role",
+          "hasPassword",
+          "isSuperuser"
+        ],
+        "title": "UserModel",
+        "description": "`User.model_dump()` as rendered by the profile endpoints."
+      },
+      "UserRefreshRequest": {
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "title": "Refreshtoken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "title": "UserRefreshRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8200",
+      "description": "Backend local (just backend dev)"
+    }
+  ]
+}

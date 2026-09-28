@@ -1,37 +1,28 @@
 import { docs } from "collections/server";
-import { loader } from "fumadocs-core/source";
+import { llms, loader } from "fumadocs-core/source";
+import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
+import { openapi, openapiPages } from "../../lib/openapi";
+import { docsRoute } from "./shared";
 
-export const source = loader({
-  baseUrl: "/docs",
-  source: docs.toFumadocsSource(),
+// Server-only: route loaders use it; components read content via collections/browser.
+export const source = loader(
+  {
+    docs: docs.toFumadocsSource(),
+    openapi: await openapi.staticSource(openapiPages),
+  },
+  {
+    baseUrl: docsRoute,
+    plugins: [lucideIconsPlugin(), openapi.loaderPlugin()],
+  }
+);
+
+export type DocsPage = (typeof source)["$inferPage"];
+
+export const docsLlms = llms(source, {
+  renderPage: async (page) => {
+    if (page.type === "openapi") {
+      return `# ${page.data.title} (${page.url})\n\n\`\`\`json\n${JSON.stringify(page.data.getSchema().bundled, null, 2)}\n\`\`\``;
+    }
+    return `# ${page.data.title} (${page.url})\n\n${await page.data.getText("processed")}`;
+  },
 });
-
-export function markdownPathToSlugs(segments: string[]) {
-  if (segments.length === 0) {
-    return [];
-  }
-
-  const out = [...segments];
-  out[out.length - 1] = out[out.length - 1].replace(/\.mdx?$/, "");
-
-  if (out.length === 1 && out[0] === "index") {
-    out.pop();
-  }
-
-  return out;
-}
-
-export function slugsToMarkdownPath(slugs: string[]) {
-  const segments = [...slugs];
-
-  if (segments.length === 0) {
-    segments.push("index.mdx");
-  } else {
-    segments[segments.length - 1] += ".mdx";
-  }
-
-  return {
-    segments,
-    url: `/docs/${segments.join("/")}`,
-  };
-}

@@ -6,6 +6,8 @@ allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
 
 # Browser Automation with playwright-cli
 
+> Project note: use this CLI for ad-hoc browser exploration. The project's E2E suite runs through `just frontend e2e` and `just integration` (pnpm, isolated `E2E_PORT`); webapp-testing owns browser-testing policy and verify-change selects the gate. Do not use `npx`/`npm` scripts for the suite.
+
 ## Quick start
 
 ```bash

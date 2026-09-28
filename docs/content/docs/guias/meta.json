@@ -1,0 +1,17 @@
+{
+  "title": "Guías",
+  "description": "Tareas concretas paso a paso",
+  "icon": "Compass",
+  "root": true,
+  "pages": [
+    "index",
+    "---Backend---",
+    "...backend",
+    "---Frontend---",
+    "...frontend",
+    "---Documentación---",
+    "...documentacion",
+    "---Operación---",
+    "...operacion"
+  ]
+}

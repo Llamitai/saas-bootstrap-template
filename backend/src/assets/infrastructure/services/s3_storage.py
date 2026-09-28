@@ -1,3 +1,5 @@
+import asyncio
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -22,7 +24,17 @@ class S3StorageService(StorageService):
     def __init__(self):
         self.bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
-    def upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
+    # Blocking I/O runs in a worker thread; the private methods hold the sync logic.
+    async def upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
+        return await asyncio.to_thread(self._upload_file, input_file)
+
+    async def get_file(self, file_path: str) -> InMemoryFile:
+        return await asyncio.to_thread(self._get_file, file_path)
+
+    async def delete_file(self, file_path: str) -> None:
+        await asyncio.to_thread(self._delete_file, file_path)
+
+    def _upload_file(self, input_file: InMemoryFile) -> InMemoryFile:
         if not input_file.is_procesable:
             error_msg = "Input file must have both file_path and file_bytes"
             raise ValueError(error_msg)
@@ -46,7 +58,7 @@ class S3StorageService(StorageService):
             error_msg = f"Failed to upload file to S3: {e!s}"
             raise ValueError(error_msg) from e
 
-    def get_file(self, file_path: str) -> InMemoryFile:
+    def _get_file(self, file_path: str) -> InMemoryFile:
         # Extract bucket and key from S3 URL if provided
         if file_path.startswith("s3://"):
             # Parse S3 URL format: s3://bucket/key
@@ -80,7 +92,7 @@ class S3StorageService(StorageService):
                 raise FileNotFoundError(f"File not found in S3: {object_key}") from e
             raise ValueError(f"Failed to retrieve file from S3: {e!s}") from e
 
-    def delete_file(self, file_path: str) -> None:
+    def _delete_file(self, file_path: str) -> None:
         # Handle different URL formats
         if file_path.startswith("http://") or file_path.startswith("https://"):
             # Extract object key from HTTP URL

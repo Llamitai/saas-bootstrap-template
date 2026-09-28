@@ -1,0 +1,72 @@
+---
+title: Comandos
+description: Recetas just por área, qué hacen y cuáles modifican archivos.
+icon: SquareTerminal
+---
+
+<Callout title="En resumen">
+  Todas las recetas se ejecutan desde la raíz Git. `just <área>` lista las de cada área. Las que corrigen archivos están marcadas; los checks y CI nunca corrigen.
+</Callout>
+
+La fuente es el `justfile` raíz y `just/*.just`. La [guía de verificación](../equipo/verificacion.md) indica qué ejecutar según el impacto de un cambio.
+
+## Raíz
+
+| Receta | Qué hace |
+| --- | --- |
+| `just check` | Checks estáticos de agentes, backend y frontend; no corrige nada |
+| `just verify` | `check` más tests backend (sin API) y `frontend verify` |
+| `just agent-check` | Metadatos de skills, enlaces, frontmatter de docs y copias sincronizadas |
+| `just sync-skills [nombres]` | Copia los skills de `.claude/skills` a `.agents/skills` (**modifica**) |
+| `just integration [args]` | Recorrido real navegador → BFF → API con un stack exclusivo |
+| `just change-status <id>` | Estado estructural de una change OpenSpec |
+| `just spec-check <id> [change\|spec]` | Validación estricta de OpenSpec |
+| `just skill-evals [skills]` | Evals de activación de skills (llamadas facturadas) |
+| `just dev-all` / `just build-all` | Arranca o compila las tres apps |
+| `just ps` | Contenedores en ejecución |
+
+## Backend
+
+| Receta | Qué hace |
+| --- | --- |
+| `just backend dev` / `dev-d` | Stack local completo con worker, Valkey y RabbitMQ (en primer plano o en segundo plano) |
+| `just backend stop` | Detiene el stack |
+| `just backend test [marker] [paths]` | pytest: `unit` (por defecto, sin API), `api`, `all` o `single` |
+| `just backend check` | Ruff format/check, ty e import-linter sin autofix |
+| `just backend quality` | Formato, lint con autofix, tipos e imports (**modifica**) |
+| `just backend migrate` | Aplica migraciones pendientes |
+| `just backend new-migration "msg"` | Genera una revisión Alembic (**modifica**) |
+| `just backend check-migrations [args]` | Migra bases desechables y detecta drift |
+| `just backend openapi` | Regenera `docs/openapi/openapi.json` (**modifica**) |
+| `just backend openapi-check` | Falla si el snapshot OpenAPI está desfasado |
+| `just backend seed` | Tenants, usuarios y roles de ejemplo |
+| `just backend minio-setup` | Crea el bucket S3 local (RustFS) y permite lectura pública de `tenants/` |
+| `just backend debugpy` | Stack con debugpy en `5678` (API) y `5679` (worker) |
+| `just backend bash` / `logs` | Shell en el contenedor `api` / logs de la API |
+
+## Frontend
+
+| Receta | Qué hace |
+| --- | --- |
+| `just frontend dev` | Servidor de desarrollo en `:3000` |
+| `just frontend test [filtros]` | Vitest; una selección vacía falla |
+| `just frontend check` | tsc, Biome y límites de import sin autofix |
+| `just frontend verify` | `check` más Vitest y build |
+| `just frontend lint` / `format` | Biome con autofix (**modifica**) |
+| `just frontend e2e` | Smoke de Playwright |
+| `just frontend new-feature <nombre>` | Esqueleto de feature (**modifica**; rechaza una existente) |
+
+## Documentación
+
+| Receta | Qué hace |
+| --- | --- |
+| `just docs dev` | Este sitio en `:4321` |
+| `just docs build` | Build prerenderizado; falla ante cualquier página rota |
+| `just docs typecheck` | Typegen de React Router y tsc |
+| `just docs check` | Typecheck y Biome sin autofix |
+| `just docs code_quality` | Formato, lint (Biome) y typecheck (**modifica**) |
+| `just docs preview` | Sirve el build localmente |
+
+<Callout type="warn" title="Limpieza">
+  `just docker-prune-global` hace `docker system prune` global y `just stop-all` detiene el stack del backend: no los uses como limpieza de una tarea. Cada tarea limpia solo los recursos que creó.
+</Callout>

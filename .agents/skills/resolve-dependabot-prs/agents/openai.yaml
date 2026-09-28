@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $resolve-dependabot-prs to consolidate, verify, merge, and close every safe Dependabot update in the current repository."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

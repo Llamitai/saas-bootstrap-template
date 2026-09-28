@@ -75,6 +75,7 @@ function Field({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: shadcn Field groups one control; a fieldset would need a legend and reset its layout.
     <div
       role="group"
       data-slot="field"

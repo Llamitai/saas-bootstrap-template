@@ -3,6 +3,7 @@
     ".react-router/types/**/*",
     ".source/**/*",
     "app/**/*",
+    "lib/**/*",
     "content/**/*",
     "react-router.config.ts",
     "source.config.ts",
@@ -23,7 +24,6 @@
     "rootDirs": [".", "./.react-router/types"],
     "paths": {
       "@/*": ["./app/*"],
-      "~/*": ["./app/*"],
       "collections/*": ["./.source/*"]
     },
     "noEmit": true

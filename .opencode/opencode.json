@@ -24,7 +24,7 @@
       "command": [
         "npx",
         "-y",
-        "chrome-devtools-mcp@latest"
+        "chrome-devtools-mcp@1.10.1"
       ],
       "enabled": false
     },
@@ -33,7 +33,7 @@
       "command": [
         "npx",
         "-y",
-        "@playwright/mcp@latest"
+        "@playwright/mcp@0.0.82"
       ],
       "enabled": false
     },
@@ -57,9 +57,6 @@
       }
     }
   },
-  "instructions": [
-    "AGENTS.md"
-  ],
   "lsp": {
     "pyright": {
       "command": [

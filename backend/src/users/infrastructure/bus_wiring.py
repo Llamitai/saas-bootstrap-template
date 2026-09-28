@@ -104,6 +104,7 @@ def users_wiring(
         command=UpdateUserPasswordCommand,
         handler=UpdateUserPasswordHandler(
             user_repository=domain.user_repository,
+            token_service=domain.token_service,
         ),
     )
     bus.command_bus.subscribe(
@@ -117,6 +118,7 @@ def users_wiring(
         handler=SetUserPasswordHandler(
             repository=domain.user_repository,
             query_bus=bus.query_bus,
+            token_service=domain.token_service,
         ),
     )
     bus.command_bus.subscribe(

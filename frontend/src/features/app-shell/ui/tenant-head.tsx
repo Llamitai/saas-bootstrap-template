@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useCallback } from "react";
 import type { Tenant } from "@/entities/tenant";
 import { useSessionStore } from "@/features/auth";
@@ -50,6 +51,7 @@ function resolveTargetPath(pathname: string): string {
 }
 
 export function TenantHead() {
+  const t = useTranslations("AppShell");
   const tenant = useSessionStore((s) => s.tenant);
   const { data: tenants = [], isLoading: loading } = useTenantsQuery();
   const selectTenant = useSelectTenantMutation();
@@ -127,12 +129,12 @@ export function TenantHead() {
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="text-muted-foreground text-xs">
-                Cambiar Tenant
+                {t("switchTenant")}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {loading ? (
                 <DropdownMenuItem disabled>
-                  Cargando tenants...
+                  {t("loadingTenants")}
                 </DropdownMenuItem>
               ) : (
                 tenants.map((option) => (
@@ -151,7 +153,7 @@ export function TenantHead() {
                         <span className="font-medium">{option.name}</span>
                         {tenant.uuid === option.uuid && (
                           <Badge variant="default" className="text-xs">
-                            Actual
+                            {t("currentTenant")}
                           </Badge>
                         )}
                       </div>

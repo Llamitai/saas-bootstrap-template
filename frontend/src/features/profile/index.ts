@@ -1,4 +1,9 @@
-export { useProfileStore } from "@/features/profile/model/profile-store";
+export {
+  profileKeys,
+  useProfileQuery,
+  useUpdatePasswordMutation,
+  useUpdateProfileMutation,
+} from "@/features/profile/api/profile-api";
 export type {
   Profile,
   UpdatePasswordPayload,

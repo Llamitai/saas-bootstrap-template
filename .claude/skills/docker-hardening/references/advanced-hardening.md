@@ -2,15 +2,18 @@
 
 This file covers the deeper layers of the audit beyond CIS Level-1 and the compose runtime block. Each section is self-contained; jump to the layer the user asked about.
 
-Layers covered:
+Contents:
 
-- [§A — Supply chain](#a--supply-chain)
+- [§A — Supply chain](#a--supply-chain): [A.1 frontend](#a1-pin-the-buildkit-frontend) ·
+  [A.2 SBOM](#a2-sbom-generation) · [A.3 signing](#a3-image-signing-with-cosign) ·
+  [A.4 provenance](#a4-provenance-slsa) · [A.5 .dockerignore](#a5-dockerignore-essentials) ·
+  [A.6 scanning](#a6-image-scanning-matrix) · [A.7 Dependabot/Renovate](#a7-renovate--dependabot-for-digests)
 - [§B — Runtime profiles (caps, seccomp, AppArmor, SELinux)](#b--runtime-profiles)
 - [§C — User namespaces & rootless Docker](#c--user-namespaces--rootless-docker)
 - [§D — Host & daemon configuration](#d--host--daemon-configuration)
 - [§E — Network hardening](#e--network-hardening)
 - [§F — Monitoring & runtime detection](#f--monitoring--runtime-detection)
-- [§G — Image strategy (distroless, Wolfi, Chainguard)](#g--image-strategy)
+- [§G — Image strategy (distroless, Docker Hardened Images, Wolfi, Chainguard)](#g--image-strategy)
 
 ---
 
@@ -38,14 +41,22 @@ grep -rn "^# syntax=" .
 ```
 Flag any frontend that is not `docker/dockerfile:*`.
 
-Optionally restrict at the BuildKit level (`/etc/buildkit/buildkitd.toml`):
+Optionally restrict at the BuildKit level (`/etc/buildkit/buildkitd.toml`).
+The documented frontend keys are `dockerfile.v0` (built-in Dockerfile
+frontend) and `gateway.v0` (images loaded via `# syntax=`); there is no
+wildcard key. An empty `allowedRepositories` allows every gateway source;
+only repository names (no tag) are compared
+([buildkitd.toml reference](https://docs.docker.com/build/buildkit/toml-configuration/)):
 ```toml
 [frontend."dockerfile.v0"]
   enabled = true
 
-[frontend."*"]
-  enabled = false
+[frontend."gateway.v0"]
+  enabled = true
+  allowedRepositories = ["docker.io/docker/dockerfile"]
 ```
+Allowlisting only the official frontend blocks untrusted `# syntax=` images;
+setting `gateway.v0` `enabled = false` blocks all `# syntax=` frontends.
 
 ### A.2 SBOM generation
 
@@ -53,7 +64,7 @@ Optionally restrict at the BuildKit level (`/etc/buildkit/buildkitd.toml`):
 ```bash
 docker buildx build \
   --sbom=true \
-  --provenance=true \
+  --provenance=mode=max \
   --output type=image,name=ghcr.io/org/repo:tag,push=true .
 ```
 
@@ -73,13 +84,15 @@ syft <image> -o cyclonedx-json > sbom.cdx.json
 ```
 
 #### In CI (GitHub Actions)
+Third-party actions are pinned by full commit SHA (tags are mutable); the
+comment records the release tag the SHA was resolved from.
 ```yaml
-- uses: anchore/sbom-action@v0
+- uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
   with:
     image: ghcr.io/${{ github.repository }}:${{ github.sha }}
     format: spdx-json
     output-file: sbom.spdx.json
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   with: { name: sbom, path: sbom.spdx.json }
 ```
 
@@ -110,13 +123,55 @@ cosign verify --key cosign.pub ghcr.io/org/repo:tag
 ```
 
 #### Keyless (Sigstore / OIDC, recommended)
+Sign the digest, not a mutable tag. In GitHub Actions the job needs an OIDC
+token and registry write access:
+```yaml
+permissions:
+  contents: read
+  id-token: write   # OIDC token for Sigstore keyless signing
+  packages: write   # push the signature to GHCR
+steps:
+  - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+  # ... build and push with docker/build-push-action (id: build) ...
+  - run: cosign sign --yes ghcr.io/org/repo@${{ steps.build.outputs.digest }}
+```
 ```bash
-cosign sign ghcr.io/org/repo:tag           # uses OIDC identity
 cosign verify \
   --certificate-identity=https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/org/repo:tag
+  ghcr.io/org/repo@sha256:<digest>
 ```
+
+#### GitHub artifact attestations (GHCR alternative)
+GitHub-signed build provenance (Sigstore-backed) without managing cosign
+([docs](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)):
+```yaml
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  packages: write
+steps:
+  - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+    with:
+      subject-name: ghcr.io/${{ github.repository }}   # no tag
+      subject-digest: ${{ steps.build.outputs.digest }}
+      push-to-registry: true
+```
+```bash
+gh attestation verify oci://ghcr.io/org/repo:tag -R org/repo
+```
+
+#### Notation (CNCF Notary Project)
+Notation signatures are the other OCI-native option when the registry or
+platform standardizes on Notary Project/X.509 PKI.
+
+> **Docker Content Trust (DCT / Notary v1) is retired.** The Notary v1 service
+> at `notary.docker.io` shuts down on December 8, 2026; Docker points to
+> Sigstore/Cosign and Notation instead
+> ([retirement notice](https://docs.docker.com/retired/#docker-content-trust-dct)).
+> Flag `DOCKER_CONTENT_TRUST=1`, `docker trust` or `notary` usage as a finding
+> and migrate it; never recommend DCT.
 
 #### Admission controller (Kubernetes)
 Use **Sigstore Policy Controller** or **Kyverno** to enforce `cosign verify` before admitting any pod. Without enforcement, signing is documentation, not security.
@@ -128,6 +183,13 @@ docker buildx build --provenance=mode=max --sbom=true -t ghcr.io/org/repo:tag --
 ```
 - `mode=min` (default with `--push`): base info only.
 - `mode=max`: includes build args, env, source, dependencies.
+
+BuildKit provenance alone is unsigned. SLSA Build L2 requires provenance that
+the **hosted** build platform generates and signs, and consumers verify
+([SLSA Build track](https://slsa.dev/spec/v1.2/build-track-basics)). Use
+`mode=max` on a hosted CI runner plus a signed attestation (`cosign attest` or
+GitHub artifact attestations, §A.3) and verify it at deploy; do not claim an
+SLSA level from `--provenance=true` alone.
 
 ### A.5 `.dockerignore` essentials
 
@@ -175,7 +237,7 @@ docker-compose.override.yml
 
 | Tool | Best for | Exit-1 flag |
 |---|---|---|
-| Docker Scout | Docker ecosystem, policy violations | `--exit-code 1` |
+| Docker Scout | Docker ecosystem, policy violations | `--exit-code` (boolean; exits 2 on findings) |
 | Trivy | Wide ecosystem (OS pkgs, libs, IaC, secrets) | `--exit-code 1` |
 | Grype | SBOM-first scanning, fast | `--fail-on high` |
 | Snyk | Commercial, dev-focused remediation advice | `--severity-threshold=high` |
@@ -188,10 +250,18 @@ Pick one for CI gating; consider a second for periodic registry-wide scans.
 # .github/dependabot.yml
 version: 2
 updates:
-  - package-ecosystem: docker
+  - package-ecosystem: docker          # FROM lines in Dockerfiles
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: docker-compose  # image: lines in compose files
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions  # SHA-pinned actions in workflows
     directory: /
     schedule: { interval: weekly }
 ```
+Adjust directories to where the Dockerfiles and compose files live. See
+[supported ecosystems](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories).
 
 Renovate equivalent — set `"pinDigests": true` and `"docker"` enabled.
 
@@ -429,7 +499,6 @@ sudo augenrules --load
 ```bash
 # As container (read-only)
 docker run --rm --net host --pid host --userns host --cap-add audit_control \
-  -e DOCKER_CONTENT_TRUST=$DOCKER_CONTENT_TRUST \
   -v /etc:/etc:ro -v /var/lib:/var/lib:ro \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   --label docker_bench_security \
@@ -437,6 +506,11 @@ docker run --rm --net host --pid host --userns host --cap-add audit_control \
 ```
 
 Treat WARN/FAIL items as TODOs. Don't expect 100% — document exemptions per workload.
+docker-bench-security implements CIS Docker Benchmark v1.6.0 numbering; CIS
+has since published newer revisions (v1.8.0), so check section numbers against
+the benchmark version the organization adopts. Its content-trust check (4.5)
+relies on the retired DCT/Notary v1 — record it as an exception covered by
+cosign/Notation/attestation verification instead of enabling DCT.
 
 ### D.4 Keep the daemon updated
 
@@ -556,23 +630,27 @@ Pick the smallest image that runs the app. In order of preference:
 
 1. **`scratch`** — single static binary (Go, Rust, .NET AOT). No shell, no package manager. Smallest attack surface.
 2. **Distroless** (`gcr.io/distroless/<lang>-debian12:nonroot`) — language runtime only, no shell, no apt. Comes with a non-root user.
-3. **Chainguard Images / Wolfi** — distroless-style, zero-CVE goal, daily rebuilds, SBOM + signature included.
+3. **Docker Hardened Images / Chainguard Images / Wolfi** — distroless-style, low-CVE goal, SBOM + signature included. DHI Community images are free under Apache 2.0 from `dhi.io` (sign in with a Docker account: `docker login dhi.io`) and ship signed SBOMs, VEX and SLSA Build L3 provenance; Select/Enterprise tiers add SLA-backed updates and compliance variants ([docs](https://docs.docker.com/dhi/)).
 4. **`*-alpine`** — small (~5 MB), `apk` package manager, may have musl-libc edge cases.
 5. **`*-slim`** — Debian slim, apt-get available, ~70 MB.
 6. **Full `*`** — Debian/Ubuntu standard, ~200 MB. Avoid for production.
 
 ### Wolfi / Chainguard example
 
+Pin the digest resolved from the tag you choose
+(`docker buildx imagetools inspect cgr.dev/chainguard/python:<tag>`) so the
+audit's `:latest` rule is satisfied and Dependabot/Renovate bump it.
+
 ```dockerfile
 # Build with full toolchain
-FROM cgr.dev/chainguard/python:latest-dev AS builder
+FROM cgr.dev/chainguard/python@sha256:<dev-digest> AS builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run in zero-CVE final image
-FROM cgr.dev/chainguard/python:latest
+FROM cgr.dev/chainguard/python@sha256:<runtime-digest>
 WORKDIR /app
 COPY --from=builder /root/.local /home/nonroot/.local
 COPY --from=builder /app /app
@@ -585,7 +663,7 @@ Chainguard images ship with SBOM attestations and cosign signatures — verify t
 ```bash
 cosign verify --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   --certificate-identity=https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main \
-  cgr.dev/chainguard/python:latest
+  cgr.dev/chainguard/python@sha256:<runtime-digest>
 ```
 
 ### Distroless example

@@ -15,9 +15,12 @@ Commands:
     status      stack record + container states + running image tags
     logs        tail a container's logs through Portainer's Docker proxy
 
+Global options (--env-file, --endpoint-id, --insecure) go BEFORE the
+subcommand; argparse rejects them after it.
+
 Example:
-    portainer_stack.py endpoints --env-file .env.deploy
-    portainer_stack.py create --env-file .env.deploy --endpoint-id 1 \\
+    portainer_stack.py --env-file .env.deploy endpoints
+    portainer_stack.py --env-file .env.deploy --endpoint-id 1 create \\
         --name acme-backend-prod --repo https://github.com/acme/app \\
         --ref refs/heads/main --compose backend/docker-compose.prod.yml \\
         --stack-env .env.deploy.stack --dry-run

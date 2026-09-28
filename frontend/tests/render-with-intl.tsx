@@ -8,10 +8,9 @@ import type { ReactElement, ReactNode } from "react";
 import messages from "@/src/i18n/messages/en.json";
 
 // Test render helper that mounts NextIntlClientProvider so components calling
-// `useTranslations` work under vitest. Locale is pinned to "en": the run-summary
-// components mix i18n strings with English labels from verdict-config.ts, and the
-// unit tests assert that English copy. Re-exports the full @testing-library/react
-// surface and overrides `render` via the `wrapper` option.
+// `useTranslations` work under vitest. Locale is pinned to "en" so assertions
+// can target the English messages deterministically. Re-exports the full
+// @testing-library/react surface and overrides `render` via the `wrapper` option.
 function IntlWrapper({ children }: { children: ReactNode }) {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>

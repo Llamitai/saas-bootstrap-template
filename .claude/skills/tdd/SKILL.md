@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Apply the incremental red-green-refactor method when implementing behavior test-first. Use for TDD technique and testability decisions; verify-change owns check selection and diagnosis.
+description: Apply the incremental red-green-refactor method when implementing behavior test-first. Use when building a behavior slice test-first or deciding how to make code testable. Check selection and failure diagnosis belong to verify-change.
 ---
 
 # Test-Driven Development
@@ -24,9 +24,7 @@ See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking g
 
 ## Anti-Pattern: Horizontal Slices
 
-**DO NOT write all tests first, then all implementation.** This is "horizontal slicing" - treating RED as "write all tests" and GREEN as "write all code."
-
-This produces **crap tests**:
+Avoid writing all tests first and then all implementation. This "horizontal slicing" treats RED as "write all tests" and GREEN as "write all code", and it produces weak tests:
 
 - Tests written in bulk test _imagined_ behavior, not _actual_ behavior
 - You end up testing the _shape_ of things (data structures, function signatures) rather than user-facing behavior
@@ -51,7 +49,7 @@ RIGHT (vertical):
 
 ### 1. Planning
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so that test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+Match test names and interface vocabulary to the domain language already used by the affected module, and respect ADRs in `docs/content/docs/equipo/adr/` for the area you're touching.
 
 Reuse the active OpenSpec change and already agreed interface/behaviors. Identify observable criteria, the first vertical test and any difficult testability seam (use codebase-design when useful). Ask only for critical missing decisions. Do not repeat approval, create another spec or impose TDD on mechanical/docs-only work. Prioritize the affected contract and important errors rather than every imagined edge case.
 
@@ -92,7 +90,7 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 - [ ] Consider what new code reveals about existing code
 - [ ] Run tests after each refactor step
 
-**Never refactor while RED.** Get to GREEN first.
+Refactor only from GREEN: a failing test hides whether the refactor preserved behavior.
 
 ## Checklist Per Cycle
 

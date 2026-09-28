@@ -1,6 +1,26 @@
 #!/bin/bash
+# Production process launcher, run by /start inside `infisical run`.
+#   api     (default) apply migrations, then serve HTTP. A failed migration
+#           aborts the start, so a broken schema never receives traffic.
+#   worker  RabbitMQ deferred-command worker (own compose service, same image).
+#   migrate apply migrations and exit (one-shot/manual use).
+set -euo pipefail
 
-alembic upgrade head
+role="${1:-api}"
 
-saq config.tasks.worker_settings &
-uvicorn config.main:app --host 0.0.0.0 --port 8200
+case "$role" in
+    api)
+        alembic upgrade head
+        exec uvicorn config.main:app --host 0.0.0.0 --port 8200
+        ;;
+    worker)
+        exec python -m config.worker
+        ;;
+    migrate)
+        exec alembic upgrade head
+        ;;
+    *)
+        echo "usage: /start [api|worker|migrate]" >&2
+        exit 64
+        ;;
+esac

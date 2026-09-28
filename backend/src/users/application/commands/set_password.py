@@ -7,6 +7,7 @@ from src.common.domain.buses.commands import CommandHandler
 from src.common.domain.buses.queries import QueryBus
 from src.common.domain.exceptions.users import UserNotFoundError
 from src.common.domain.models.user import User
+from src.common.domain.services.token_service import USER_SESSION_NAMESPACE, TokenService
 from src.users.domain.repositories.user import UserRepository
 
 
@@ -14,6 +15,7 @@ from src.users.domain.repositories.user import UserRepository
 class SetUserPasswordHandler(CommandHandler[SetUserPasswordCommand]):
     repository: UserRepository
     query_bus: QueryBus
+    token_service: TokenService
 
     async def execute(self, command: SetUserPasswordCommand):
         user = cast(
@@ -28,3 +30,5 @@ class SetUserPasswordHandler(CommandHandler[SetUserPasswordCommand]):
             user_id=user.uuid,
             new_password=command.password,
         )
+        # A password set by an administrator closes every session of the user.
+        await self.token_service.revoke_all_sessions(sub=str(user.uuid), namespace=USER_SESSION_NAMESPACE)

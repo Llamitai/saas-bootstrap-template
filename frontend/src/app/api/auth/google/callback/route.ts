@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { googleLoginBackend } from "@/features/auth/server";
 import { serverConfig } from "@/shared/config/server";
+import { backendHeadersFrom } from "@/shared/http/bff";
 import { clearCookie, setSessionCookies } from "@/shared/http/session-cookies";
 import { COOKIE_GOOGLE_OAUTH_STATE } from "@/src/constants";
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await googleLoginBackend(code);
+    const result = await googleLoginBackend(code, backendHeadersFrom(request));
     if (!result.ok) {
       return clearState(
         NextResponse.redirect(new URL("/?error=googleLoginFailed", origin))

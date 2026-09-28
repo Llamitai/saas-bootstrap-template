@@ -14,6 +14,8 @@ class JwtTokenClaims(CamelModel):
     jti: str
     ns: str
     scope: JwtTokenScope
+    # Session id of access and refresh tokens; one-shot tokens carry none.
+    sid: str | None = None
 
 
 class TokenBuilder(ABC):

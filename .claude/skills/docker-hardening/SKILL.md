@@ -2,9 +2,12 @@
 name: docker-hardening
 description: >
   Audit or fix Docker security controls for images, Compose and explicitly scoped
-  runtime infrastructure. Use for requested container hardening or concrete
-  security findings. Ordinary Docker edits, deployments and dependency updates
-  do not start a security audit.
+  runtime infrastructure: CIS Docker Benchmark, non-root users, secrets in layers,
+  digest pinning, capabilities, read-only filesystems, seccomp/AppArmor, SBOM,
+  signing, image scanning, network segmentation and runtime detection. Use when
+  the user asks to harden, audit or review containers for security, or when a
+  concrete container security finding needs a fix. Ordinary Docker edits, style
+  refactors, deployments and dependency updates do not start a security audit.
 ---
 
 # Docker Hardening
@@ -22,24 +25,7 @@ does not start those workflows or authorize external changes.
 
 ---
 
-## 1. When to activate
-
-Trigger if the user wants any of these:
-
-| Intent | Examples |
-|---|---|
-| Audit | "harden / hardenize Docker", "audit Dockerfile security", "review my compose for security", "CIS Docker compliance", "docker-bench" |
-| Build hardening | "non-root container", "remove secrets from Dockerfile", "BuildKit secrets", "pin base image digest" |
-| Runtime hardening | "drop capabilities", "read-only filesystem", "no-new-privileges", "seccomp / AppArmor / SELinux", "user namespaces", "rootless docker" |
-| Supply chain | "scan image" (Scout / Trivy / Grype / Snyk), "SBOM", "sign image" (cosign / DCT), "verify provenance", "pin BuildKit frontend" |
-| Network / secrets | "network segmentation", "internal network", "expose only the port", "docker secrets / swarm secrets", "vault for container secrets" |
-| Monitoring | "Falco", "runtime detection", "docker events", "container audit logging" |
-
-Skip if the user only wants Dockerfile *style* refactoring with no security angle — point them to general Docker docs instead.
-
----
-
-## 2. Working principles
+## 1. Working principles
 
 - **Stack agnostic.** Detect language by reading `FROM` + lockfiles. Adapt snippets from `references/remediations.md`.
 - **Evidence-based.** Every PASS/FAIL must cite `file:line` or a command's output. Without evidence → `MANUAL`.
@@ -47,11 +33,11 @@ Skip if the user only wants Dockerfile *style* refactoring with no security angl
 - **Preserve task scope.** A review stays read-only. When the user requests fixes,
   implement and verify the authorized local changes without another approval
   loop. External runtime/host mutations require authorization for that target.
-- **Defense in depth.** Don't treat a single control as "the fix" — every layer of [Section 4](#4-defense-in-depth-7-layers) reduces blast radius if another fails.
+- **Defense in depth.** Don't treat a single control as "the fix" — every defense-in-depth layer (Section 3) reduces blast radius if another fails.
 
 ---
 
-## 3. Audit workflow
+## 2. Audit workflow
 
 ### Phase 0 — Scope & discovery
 
@@ -69,6 +55,7 @@ Skip if the user only wants Dockerfile *style* refactoring with no security angl
      -o -iname "compose*.yml" \
      -o -iname "compose*.yaml" \
      -o -iname ".dockerignore" \
+     -o -iname "*.dockerignore" \
    \) \
      | grep -Ev '/(node_modules|\.next|\.venv|venv|dist|build|target|vendor|\.git)/'
    ```
@@ -101,14 +88,16 @@ Score each artifact against the audit matrix below. Use this rubric:
 | A4 | 4.7 | Update+install in one layer | `update && install` chained with `&&`; packages pinned; no orphan update. |
 | A5 | 4.9 | COPY over ADD | No `ADD` (except local tar extraction with justifying comment). |
 | A6 | 4.11 | Verified packages | Signed repos / checksums / lockfile integrity. |
-| A7 | 5.28 | Pinned image versions | `FROM image:tag@sha256:…` digest (preferred). Never `:latest`. |
+| A7 | 5.28 | Pinned image versions | Never `:latest`; project extension: `FROM image:tag@sha256:…` digest. |
 | A8 | 5.7 | No sshd in container | No `openssh-server` installed, no `sshd` running. |
 | A9 | 5.9 | Only necessary ports | `EXPOSE` and compose `ports:` minimal; never `-P` / `--publish-all`. |
-| A10 | 4.2 | Trusted base image | Official / Verified / mirror / distroless / Wolfi (Chainguard). MANUAL unless mirror enforced. |
-| A11 | 4.4 | Scanned + rebuilt | CI runs `docker scout cves` / `trivy image` / `grype` with `--exit-code 1`. MANUAL — check CI. |
+| A10 | 4.2 | Trusted base image | Official / Verified / mirror / distroless / Docker Hardened Images / Wolfi (Chainguard). MANUAL unless mirror enforced. |
+| A11 | 4.4 | Scanned + rebuilt | CI gate fails on findings (`docker scout cves --exit-code`, `trivy image --exit-code 1`, `grype --fail-on high`); third-party actions pinned by full commit SHA (tags are mutable), scanner images by digest. MANUAL — check CI. |
 | A12 | 4.10 | No secrets in Dockerfile | No `ENV`/`ARG` with credentials; secrets via BuildKit `--mount=type=secret` or runtime env. |
 
-Full text + auditor commands: [`references/cis-controls.md`](references/cis-controls.md).
+Section numbers follow docker-bench-security (CIS Docker Benchmark v1.6.0);
+newer CIS revisions may renumber. Full text + auditor commands:
+[`references/cis-controls.md`](references/cis-controls.md).
 
 #### B — Compose runtime hardening (when compose files exist)
 
@@ -135,10 +124,10 @@ Snippets: [`references/remediations.md`](references/remediations.md).
 |---|---|
 | C1 | BuildKit frontend pinned: `# syntax=docker/dockerfile:1` (or with `@sha256:`); never untrusted frontends |
 | C2 | SBOM generated: `docker buildx build --sbom=true …` or `syft <image>` in CI |
-| C3 | Provenance attestation: `--provenance=true` (SLSA Level 2+) |
-| C4 | Image signed: `cosign sign` (preferred) or Docker Content Trust |
+| C3 | Provenance `--provenance=mode=max` on hosted CI + signed attestation verified at deploy (needed for SLSA Build L2; unsigned provenance alone is not L2) |
+| C4 | Image signed: cosign keyless, Notation or GitHub artifact attestations. Docker Content Trust (Notary v1) is retired — flag `DOCKER_CONTENT_TRUST` / `docker trust` usage |
 | C5 | Registry pulls verified: `cosign verify` in deploy step / admission controller |
-| C6 | Base images from low-CVE source (Wolfi / Chainguard / distroless) when feasible |
+| C6 | Base images from low-CVE source (Docker Hardened Images / Wolfi / Chainguard / distroless) when feasible, pinned by digest |
 | C7 | Renovate/Dependabot auto-bumping digests via PR |
 | C8 | `.dockerignore` excludes `.env`, `*.pem`, `.git`, `node_modules`, secrets directories |
 
@@ -183,55 +172,15 @@ For a read-only review, return findings without writing a report file. For an
 audit that requests a durable report, reuse its specified path or the existing
 internal engineering documentation tree:
 
-- `docs/internal/docker-hardening-report.md` in this boilerplate
+- `docs/content/docs/equipo/docker-hardening-report.md` in this boilerplate (with `title`/`description` frontmatter, since that tree renders in the docs site)
 - `security/docker-hardening-report.md` if `security/` exists
 - `docker-hardening-report.md` at repo root otherwise
 
 Create parent folders only when a report file is in scope. A single-control fix
 needs its finding, diff and verification evidence, not a full audit document.
 
-Report structure:
+Use [the report template](references/report-template.md) for a durable report.
 
-```markdown
-# Docker Hardening Audit — <YYYY-MM-DD>
-
-## Scope
-- Repo: <path>
-- Artifacts: <list>
-- Tooling assumed available: <docker version output, or "not run">
-
-## Summary
-| File | A (CIS) | B (Compose) | C (Supply) | D (Daemon) | E (Profiles) | F (Monitor) |
-|------|---------|-------------|------------|------------|--------------|-------------|
-| backend/Dockerfile        | 8 PASS / 3 FAIL / 1 N/A / 0 MAN | — | 3/5 | — | — | — |
-| backend/docker-compose.yml | — | 7/12 | — | — | — | — |
-| ...                       | ... | ... | ... | ... | ... | ... |
-
-## Findings by file
-
-### backend/Dockerfile
-- [FAIL] **A1 / CIS 4.1 — Non-root user**: no `USER` directive.
-  - Evidence: `backend/Dockerfile` has no `USER` (lines 1–22).
-  - Fix: see "Remediations" §CIS 4.1.
-- [PASS] **A5 / CIS 4.9 — COPY over ADD**: only COPY used.
-- ...
-
-### backend/docker-compose.prod.yml
-- [FAIL] **B1 — read_only**: backend service is read/write.
-- [FAIL] **B3 — no-new-privileges**: missing on all services.
-- ...
-
-## Remediations
-For each FAIL — concrete paste-ready diff/snippet adapted to the project's stack.
-
-## Manual review checklist
-- A10/A11: confirm base image source and CI scan presence.
-- D1–D6: host audit out of scope unless host access granted.
-
-## Recommendations (not failures)
-- Consider Wolfi/Chainguard for base images (zero-CVE goal).
-- Consider rootless Docker for the runtime.
-```
 
 ### Phase 3 — Apply requested fixes
 
@@ -246,7 +195,7 @@ Never bundle unrelated refactors. Don't switch base-image families (e.g., debian
 
 ---
 
-## 4. Defense in depth — 7 layers
+## 3. Defense in depth — 7 layers
 
 This is the mental model. Every audit category in Phase 1 belongs to one of these layers. When recommending fixes, name the layer so the user sees what's being reinforced.
 
@@ -274,7 +223,7 @@ Apply at every layer:
 
 ---
 
-## 5. Anti-patterns the audit must flag
+## 4. Anti-patterns the audit must flag
 
 - `FROM <anything>:latest` — pin the tag, ideally the digest. **FAIL**.
 - `ENV API_KEY=…` / `ARG GITHUB_TOKEN=…` / `COPY .env …` / `COPY id_rsa …` — secrets in layers. **FAIL**.
@@ -286,30 +235,33 @@ Apply at every layer:
 - `--network=host` / `--pid=host` / `--ipc=host` — namespaces broken. **FAIL**.
 - `chmod 777` anywhere in the Dockerfile. **FAIL**.
 - `docker scan` (deprecated) in CI — replace with `docker scout` or `trivy`.
+- Third-party CI actions referenced by tag/branch (`@master`, `@v1`) or scanner images by `:latest` — pin by full commit SHA / digest. **FAIL**.
+- `DOCKER_CONTENT_TRUST=1` / `docker trust` / `notary` — retired DCT; migrate to cosign, Notation or attestations.
 - Untrusted BuildKit frontend (`# syntax=` pointing at a non-Docker, non-pinned image). **FAIL**.
 
 ---
 
-## 6. Things this skill must NOT do
+## 5. Things this skill must NOT do
 
 - Don't turn an audit-only request into implementation or production rollout.
 - Don't "wholesale rewrite" a Dockerfile — minimum diff per FAIL.
 - Don't declare PASS without file:line evidence.
-- Don't invent CIS section numbers — stick to the 12 listed in Section 3A.
-- Don't run deprecated tooling (`docker scan`, `notary`).
+- Don't invent CIS section numbers — stick to the 12 listed in Phase 1 A.
+- Don't run or recommend deprecated/retired tooling (`docker scan`, `notary`, Docker Content Trust).
 - Don't change the user's base-image family without consent — recommend, don't impose.
-- Don't write Spanish/English mixed prose in the report — match the user's language.
+- Don't mix languages in a report: match the user's language; reports under `docs/content/` are Spanish.
 - Don't audit host (D) without confirmed host access.
 
 ---
 
-## 7. References
+## 6. References
 
 | File | What's in it |
 |---|---|
 | [`references/cis-controls.md`](references/cis-controls.md) | Full text of the 12 CIS Level-1 controls — description, risk, auditor procedure, remediation |
 | [`references/remediations.md`](references/remediations.md) | Paste-ready Dockerfile + compose snippets for every control, with variants per package manager (apt / apk / dnf) and per language (Node / Python / Go / Java / .NET / Ruby / PHP / Rust) |
 | [`references/advanced-hardening.md`](references/advanced-hardening.md) | Supply chain (SBOM, signing, BuildKit frontend), runtime profiles (seccomp, AppArmor, SELinux), user namespaces, rootless Docker, host daemon config, monitoring (Falco, docker events, audit) |
+| [`references/report-template.md`](references/report-template.md) | Structure of a durable audit report: scope, per-category summary, findings with evidence, remediations |
 | [`references/checklist.md`](references/checklist.md) | Flat pre-deploy checklist — print-friendly, ~60 items grouped by layer |
 
 External docs:
@@ -327,4 +279,7 @@ External docs:
 - Falco (runtime detection): https://falco.org/
 - Wolfi (low-CVE base): https://wolfi.dev/
 - Chainguard Images: https://images.chainguard.dev/
+- Docker Hardened Images: https://docs.docker.com/dhi/
+- DCT retirement: https://docs.docker.com/retired/#docker-content-trust-dct
+- SLSA Build track: https://slsa.dev/spec/v1.2/build-track-basics
 - Rootless Docker: https://docs.docker.com/engine/security/rootless/

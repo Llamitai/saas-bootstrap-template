@@ -19,6 +19,7 @@ def production_settings_kwargs(**overrides: Any) -> dict[str, Any]:
         "ADMIN_API_KEY": STRONG_SECRET,
         "POSTGRES_PASSWORD": "strong-db-password",
         "REDIS_PASSWORD": "strong-redis-password",
+        "RABBITMQ_PASSWORD": "strong-rabbitmq-password",
     }
     kwargs.update(overrides)
     return kwargs
@@ -33,13 +34,15 @@ def test_production_requires_explicit_secrets() -> None:
                 ADMIN_API_KEY="",
                 POSTGRES_PASSWORD="",
                 REDIS_PASSWORD="",
+                RABBITMQ_PASSWORD="",
             )
         )
 
     expect(str(exc_info.value)).to(
         contain(
             "Missing required production secret(s): "
-            "JWT_SECRET_KEY, SECRET_KEY, ADMIN_API_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD"
+            "JWT_SECRET_KEY, SECRET_KEY, ADMIN_API_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD, "
+            "RABBITMQ_PASSWORD"
         )
     )
 
@@ -72,6 +75,28 @@ def test_production_rejects_default_postgres_password() -> None:
     expect(str(exc_info.value)).to(contain("POSTGRES_PASSWORD must not be the default 'postgres'"))
 
 
+@pytest.mark.parametrize("password", ["app", "guest"])
+def test_production_rejects_default_rabbitmq_password(password: str) -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(**production_settings_kwargs(RABBITMQ_PASSWORD=password))
+
+    expect(str(exc_info.value)).to(contain("RABBITMQ_PASSWORD must not be a default"))
+
+
+def test_rabbitmq_url__encodes_credentials_and_vhost() -> None:
+    local_settings = Settings(
+        _env_file=None,
+        ENVIRONMENT=Environment.testing,
+        RABBITMQ_HOST="broker",
+        RABBITMQ_PORT=5673,
+        RABBITMQ_USER="worker@app",
+        RABBITMQ_PASSWORD="p@ss/word:1",
+        RABBITMQ_VHOST="/",
+    )
+
+    expect(local_settings.rabbitmq_url).to(equal("amqp://worker%40app:p%40ss%2Fword%3A1@broker:5673/%2F"))
+
+
 def test_local_environment_generates_missing_secrets() -> None:
     local_settings = Settings(
         _env_file=None,
@@ -93,20 +118,13 @@ def test_session_token_ttls_match_cookie_policy() -> None:
     assert local_settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES == 60 * 24 * 7
 
 
-def test_aegora_credentials_are_isolated_from_storage_credentials() -> None:
-    values: dict[str, Any] = {
-        "_env_file": None,
-        "ENVIRONMENT": Environment.testing,
-        "AWS_ACCESS_KEY_ID": "storage-key",
-        "AWS_SECRET_ACCESS_KEY": "storage-secret",
-        "AEGORA_AWS_ACCESS_KEY_ID": "aegora-key",
-        "AEGORA_AWS_SECRET_ACCESS_KEY": "aegora-secret",
-        "AEGORA_AWS_REGION": "us-east-1",
-    }
-    local_settings = Settings(**values)
+def test_sentry_does_not_send_pii_by_default() -> None:
+    local_settings = Settings(_env_file=None, ENVIRONMENT=Environment.testing)
 
-    assert local_settings.AWS_ACCESS_KEY_ID == "storage-key"
-    assert local_settings.AWS_SECRET_ACCESS_KEY == "storage-secret"
-    assert local_settings.AEGORA_AWS_ACCESS_KEY_ID == "aegora-key"
-    assert local_settings.AEGORA_AWS_SECRET_ACCESS_KEY == "aegora-secret"
-    assert local_settings.AEGORA_AWS_REGION == "us-east-1"
+    expect(local_settings.SENTRY_SEND_DEFAULT_PII).to(equal(False))
+
+
+def test_worker_process_label_is_accepted() -> None:
+    worker_settings = Settings(_env_file=None, ENVIRONMENT=Environment.testing, PROCESS_LABEL="worker")
+
+    expect(worker_settings.PROCESS_LABEL.value).to(equal("worker"))

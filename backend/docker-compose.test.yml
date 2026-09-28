@@ -13,7 +13,21 @@ services:
       retries: 30
     tmpfs: [/var/lib/postgresql/data]
   redis:
-    image: redis:8
+    image: valkey/valkey:9.1
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    # Run as the broker user: a root CLI probe that starts before the server
+    # would create a root-owned .erlang.cookie and abort the boot (eacces).
+    user: rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: app
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 3s
+      timeout: 10s
+      retries: 30
   api:
     build:
       context: .
@@ -25,6 +39,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     ports: ['${TEST_BIND_HOST:-127.0.0.1}::8200']
     environment:
       PYTHONPATH: /app
@@ -36,6 +52,10 @@ services:
       POSTGRES_DB: postgres
       REDIS_HOST: redis
       REDIS_PORT: '6379'
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USER: app
+      RABBITMQ_PASSWORD: app
       ADMIN_API_KEY: test-super-secret-key
       JWT_SECRET_KEY: test-only-jwt-secret-with-at-least-32-characters
       SECRET_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=

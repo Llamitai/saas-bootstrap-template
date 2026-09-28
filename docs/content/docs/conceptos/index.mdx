@@ -1,79 +1,66 @@
 ---
-title: Conceptos
-description: Glosario de los conceptos principales del boilerplate.
+title: Visión general
+description: Cómo se conectan navegador, frontend, BFF, backend y servicios.
+icon: Map
 ---
 
 <Callout title="En resumen">
-  El dominio gira alrededor de usuarios que operan dentro de tenants, con permisos expresados mediante roles y flujos de invitación, perfil, settings y assets como piezas reutilizables.
+  El navegador solo habla con el frontend Next.js; las llamadas a la API pasan por `/api` en el mismo origen. El backend FastAPI sigue Clean Architecture y es el único que accede a PostgreSQL, Redis y al almacenamiento de objetos.
 </Callout>
 
-## Glosario
-
-<TypeTable
-  type={{
-    tenant: {
-      description: "Cuenta u organización aislada donde operan usuarios, settings y permisos.",
-      type: "aggregate boundary",
-    },
-    user: {
-      description: "Identidad global que puede pertenecer a uno o varios tenants.",
-      type: "identity",
-    },
-    member: {
-      description: "Relación entre usuario y tenant, con estado, rol y perfil operativo.",
-      type: "tenant user",
-    },
-    invitation: {
-      description: "Flujo para incorporar usuarios a un tenant sin crear acoplamiento manual.",
-      type: "workflow",
-    },
-    role: {
-      description: "Conjunto nombrado de permisos asignable a miembros de un tenant.",
-      type: "authorization policy",
-    },
-    permission: {
-      description: "Capacidad granular para ejecutar una acción o ver una superficie.",
-      type: "capability",
-    },
-  }}
-/>
-
-## Relaciones principales
+## Vista de alto nivel
 
 ```mermaid
-erDiagram
-  USER ||--o{ TENANT_MEMBER : belongs_to
-  TENANT ||--o{ TENANT_MEMBER : contains
-  TENANT ||--o{ INVITATION : issues
-  TENANT ||--o{ ROLE : owns
-  ROLE ||--o{ PERMISSION : grants
-  TENANT_MEMBER }o--|| ROLE : receives
+flowchart TB
+  browser[Navegador]
+  subgraph web[Frontend Next.js]
+    pages[Páginas App Router]
+    bff[BFF y proxy /api]
+  end
+  api[Backend FastAPI]
+  db[(PostgreSQL)]
+  redis[(Valkey: caché, tokens, rate limit)]
+  mq[(RabbitMQ: comandos diferidos)]
+  worker[Worker]
+  s3[(S3 / RustFS)]
+  smtp[SMTP / Mailpit]
+  directus[Directus]
+
+  browser --> pages
+  browser --> bff
+  bff --> api
+  api --> db
+  api --> redis
+  api --> mq
+  mq --> worker
+  worker --> db
+  worker --> redis
+  api --> s3
+  api --> smtp
+  directus --> db
 ```
 
-## Reglas de lenguaje
+- **Mismo origen.** El código de navegador llama a `/api` a través de los helpers HTTP compartidos. El proxy de Next reescribe esas rutas al backend y los route handlers BFF gestionan las cookies de sesión. El código de servidor puede llamar al backend directamente.
+- **Credenciales en servidor.** Tokens de infraestructura y secretos nunca llegan al cliente.
+- **Tenant explícito.** El tenant activo viaja en la cabecera `X-Tenant` y el backend valida la membresía en cada request.
 
-<Tabs items={["Dominio", "API", "UI"]}>
-  <Tab value="Dominio">
-    Usa `tenant`, `member`, `role` y `permission` para describir reglas de negocio. Evita mezclar estos términos con detalles de transporte HTTP.
-  </Tab>
-  <Tab value="API">
-    Las respuestas públicas usan `camelCase`; las entidades internas de Python conservan `snake_case`.
-  </Tab>
-  <Tab value="UI">
-    El contexto tenant y los estados de permisos deben ser visibles para reducir ambigüedad operativa.
-  </Tab>
-</Tabs>
+## Backend
 
-## Estados frecuentes
+Módulos orientados a dominio (`auth`, `users`, `profile`, `tenants`, `messaging`, `assets`, `admin`) sobre un shared kernel `common`. Las dependencias apuntan hacia el dominio. Detalle en [Arquitectura backend](arquitectura-backend.mdx).
 
-<Accordions type="single">
-  <Accordion title="Miembro invitado">
-    Existe una invitación pendiente, pero todavía no hay una sesión activa aceptada para ese tenant.
-  </Accordion>
-  <Accordion title="Miembro activo">
-    El usuario pertenece al tenant y opera con el rol asignado.
-  </Accordion>
-  <Accordion title="Superuser">
-    Usuario con controles internos de administración fuera del flujo normal de tenant.
-  </Accordion>
-</Accordions>
+## Frontend
+
+Estructura por features con flujo `app -> features -> entities -> shared`, fachadas públicas por slice y rutas delgadas. Detalle en [Arquitectura frontend](arquitectura-frontend.md).
+
+```mermaid
+flowchart LR
+  app[src/app] --> features[src/features]
+  features --> entities[src/entities]
+  features --> shared[src/shared]
+  entities --> shared
+```
+
+## Dominio y datos
+
+- [Dominio](dominio.mdx): tenants, miembros, roles, permisos e invitaciones.
+- [Modelo de datos](modelo-de-datos.md): tablas del core y sus relaciones.

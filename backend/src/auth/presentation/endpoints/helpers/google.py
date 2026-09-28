@@ -1,6 +1,13 @@
+import asyncio
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
 import httpx
-from authlib.jose import JsonWebKey, KeySet, jwt
 from fastapi import HTTPException, status
+from joserfc import jwt
+from joserfc.jwk import KeySet
+from joserfc.jws import extract_compact
 
 from src.common.application.logging import get_logger
 from src.common.domain.entities.auth.google_login import GoogleAuthTokens, GoogleUser
@@ -37,21 +44,62 @@ async def get_google_tokens(code: str) -> GoogleAuthTokens:
     return GoogleAuthTokens(access_token=access_token, id_token=id_token)
 
 
-async def get_google_certs() -> KeySet:
+# Google rotates its signing keys roughly daily and publishes them well in advance.
+GOOGLE_JWKS_TTL_SECONDS = 60 * 60
+GOOGLE_ISSUERS: list[str | int] = ["accounts.google.com", "https://accounts.google.com"]
+
+
+@dataclass
+class _JwksCache:
+    key_set: KeySet | None = None
+    fetched_at: float = 0.0
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+_jwks_cache = _JwksCache()
+
+
+def clear_google_jwks_cache() -> None:
+    _jwks_cache.key_set = None
+    _jwks_cache.fetched_at = 0.0
+
+
+async def _fetch_google_jwks() -> dict[str, Any]:
     async with httpx.AsyncClient() as client:
         response = await client.get(settings.GOOGLE_CERTS_URL, timeout=5)
-        return JsonWebKey.import_key_set(response.json())
+        response.raise_for_status()
+        return response.json()
 
 
-async def verity_google_id_token(id_token: str) -> GoogleUser | None:
-    google_key_set = await get_google_certs()
+async def get_google_certs(force_refresh: bool = False) -> KeySet:
+    async with _jwks_cache.lock:
+        expired = time.monotonic() - _jwks_cache.fetched_at >= GOOGLE_JWKS_TTL_SECONDS
+        if force_refresh or expired or _jwks_cache.key_set is None:
+            _jwks_cache.key_set = KeySet.import_key_set(await _fetch_google_jwks())  # ty: ignore[invalid-argument-type]
+            _jwks_cache.fetched_at = time.monotonic()
+        return _jwks_cache.key_set
+
+
+async def _decode_google_id_token(id_token: str) -> dict[str, Any]:
+    if not settings.GOOGLE_CLIENT_ID:
+        raise ValueError("GOOGLE_CLIENT_ID is not configured")
+    key_set = await get_google_certs()
+    kid = extract_compact(id_token.encode()).headers().get("kid")
+    if kid and not any(key.kid == kid for key in key_set.keys):
+        # Unknown key id: Google may have rotated before our cache expired.
+        key_set = await get_google_certs(force_refresh=True)
+    token = jwt.decode(id_token, key=key_set, algorithms=["RS256"])
+    jwt.JWTClaimsRegistry(
+        iss={"essential": True, "values": GOOGLE_ISSUERS},
+        aud={"essential": True, "value": settings.GOOGLE_CLIENT_ID},
+        exp={"essential": True},
+    ).validate(token.claims)
+    return token.claims
+
+
+async def verify_google_id_token(id_token: str) -> GoogleUser | None:
     try:
-        claims = jwt.decode(
-            id_token,
-            key=google_key_set,
-            claims_options={"aud": {"values": [settings.GOOGLE_CLIENT_ID]}},
-        )
-        claims.validate()
+        claims = await _decode_google_id_token(id_token)
 
         user_email = claims.get("email")
         user_given_name = claims.get("given_name", user_email)

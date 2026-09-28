@@ -1,0 +1,54 @@
+---
+title: Crear un proyecto
+description: Generar un producto nuevo desde la plantilla Copier y recibir mejoras posteriores.
+icon: Sparkles
+---
+
+<Callout title="En resumen">
+  La vía recomendada es Copier: genera un proyecto ya renombrado y permite traer mejoras de la plantilla con `copier update`. La alternativa ligera es la plantilla de GitHub más el skill `rename-project`.
+</Callout>
+
+## Con Copier (recomendado)
+
+<Steps>
+  <Step>
+    ### Generar el proyecto
+
+    ```bash
+    uvx copier copy --trust gh:Llamitai/[[ project_slug ]]-template my-app
+    ```
+
+    `--trust` es necesario porque la plantilla declara tareas: copia `backend/.env.example` a `backend/.env` y ejecuta `git init` en la primera copia.
+  </Step>
+  <Step>
+    ### Regenerar el lockfile del backend
+
+    ```bash
+    cd my-app/backend && uv lock
+    ```
+
+    La imagen de producción instala con `uv sync --locked` y falla con el lockfile de la plantilla.
+  </Step>
+  <Step>
+    ### Traer mejoras más adelante
+
+    ```bash
+    uvx copier update --trust
+    ```
+
+    Se ejecuta desde dentro del proyecto generado y aplica la siguiente versión publicada de la plantilla.
+  </Step>
+</Steps>
+
+## Con la plantilla de GitHub
+
+- Activa **Settings → Template repository** en GitHub y crea proyectos con "Use this template".
+- Pide al agente el skill [`rename-project`](../../../../.claude/skills/rename-project/SKILL.md): renombra metadatos de paquetes, imágenes Docker, documentación, metadatos de UI y seeds en una pasada. Esta vía no recibe `copier update`.
+- Personaliza la línea de copyright de `LICENSE`.
+
+## Después de generar
+
+- Para migrar a un Node LTS nuevo, ejecuta `python3 scripts/node_lts_policy.py latest` y después `python3 scripts/node_lts_policy.py update <major>`, y abre un PR normal. El check `Node LTS policy` de CI rechaza versiones desalineadas.
+- Registra en el [perfil del proyecto](../equipo/perfil-del-proyecto.md) qué capacidades del core quedan activas, ausentes o pendientes.
+
+La publicación del espejo de la plantilla es un proceso del repositorio canónico; no forma parte de los proyectos generados.

@@ -51,7 +51,7 @@ def main() -> int:
 
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        run("up", "-d", "--wait", "--wait-timeout", "90", "postgres", "redis", "mailpit")
+        run("up", "-d", "--wait", "--wait-timeout", "90", "postgres", "redis", "rabbitmq", "mailpit")
         run("build", "api")
         if args.mode == "migrations":
             run("run", "--rm", "api", "python", "scripts/check_migrations.py", *args.args)

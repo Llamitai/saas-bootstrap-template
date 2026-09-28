@@ -1,0 +1,74 @@
+---
+title: Crear una feature frontend
+description: Crear un slice con su fachada, request, query key, hook y vista, test primero.
+icon: LayoutPanelLeft
+---
+
+<Callout title="En resumen">
+  `just frontend new-feature <nombre>` crea el esqueleto. Cada interacción se construye test primero: schema en `model/`, request + key + hook en `api/`, vista en `ui/`, export en `index.ts` y una ruta delgada en `src/app`.
+</Callout>
+
+Las rutas son relativas a `frontend/`. El contrato completo está en [Arquitectura frontend](../../conceptos/arquitectura-frontend.md); léelo antes de cambiar el frontend.
+
+## Ubicar el código
+
+- **Feature** (`src/features/<feature>`): la unidad principal.
+- **Entidad** (`src/entities/<entity>`): solo si dos o más features comparten el modelo.
+- **Shared** (`src/shared`): solo código genérico, sin dominio ni stores.
+- **App** (`src/app`): solo rutas; `page.tsx` renderiza una vista de la fachada.
+
+El flujo es `app -> features -> entities -> shared` y nadie importa internals de otro slice.
+
+## Pasos
+
+<Steps>
+  <Step>
+    ### Esqueleto
+
+    ```bash
+    just frontend new-feature invoices
+    ```
+
+    Crea `api/`, `model/`, `ui/` e `index.ts`; rechaza una feature que ya existe.
+  </Step>
+  <Step>
+    ### Test que falla
+
+    Escribe el test en `tests/api/features/<feature>/`, `tests/models/features/<feature>/` o `tests/components/features/<feature>/` y comprueba que falla por la razón correcta:
+
+    ```bash
+    just frontend test invoices
+    ```
+  </Step>
+  <Step>
+    ### Implementación mínima
+
+    - Schema zod y tipos en `model/`.
+    - En `api/invoices.ts`: request functions sobre `authHttp`, el factory de query keys, los hooks `useQuery`/`useMutation` y las invalidaciones en `onSuccess`.
+    - Vista en `ui/` con estados de carga, vacío, error y recuperación, i18n y temas.
+    - Export público en `index.ts`.
+  </Step>
+  <Step>
+    ### Ruta delgada
+
+    La página en `src/app/(protected)/...` importa solo de la fachada del feature. El navegador llama al backend a través de `/api` (proxy o route handler BFF), nunca directamente.
+  </Step>
+  <Step>
+    ### Verde y refactor
+
+    Refactoriza sin abstracciones especulativas y repite por interacción. Cierra con:
+
+    ```bash
+    just frontend verify
+    ```
+  </Step>
+</Steps>
+
+## Reglas que suelen romperse
+
+- Imports relativos: todo usa `@/...`; `scripts/check-import-boundaries.mjs` lo comprueba en `just frontend check`.
+- Código de cliente que importa `@/shared/http/server`, `@/shared/http/bff` o `next/headers`.
+- Query keys sin el scope: al cambiar de tenant o sesión se mezclan datos si la caché no se limpia.
+- Interfaces repositorio que solo envuelven Axios.
+
+Si el cambio afecta a un contrato con el backend, verifica el recorrido navegador → BFF → API con `just integration` (ver [verificación](../../equipo/verificacion.md)).

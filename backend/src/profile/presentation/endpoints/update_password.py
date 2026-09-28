@@ -20,7 +20,6 @@ async def update_password(
     payload: UpdatePasswordRequest,
     current_user: User = Depends(get_authenticated_user),
     app_context: AppContext = Depends(get_app_context),
-    _response_model=TaskResult,
 ) -> ApiJSONResponse:
     override_model_properties(current_user, payload)
 

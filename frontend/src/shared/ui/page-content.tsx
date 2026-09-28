@@ -290,25 +290,23 @@ function LivePaneHeader({
 
   return (
     <header
-      onClick={toggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-      aria-expanded={size !== PaneSize.Min}
-      aria-label={size === PaneSize.Min ? "Expandir panel" : "Minimizar panel"}
       className={cn(
-        "flex shrink-0 cursor-pointer items-center gap-3 bg-card/85 px-5 py-2.5",
-        "transition-colors hover:bg-muted/40",
-        "focus-visible:outline-none focus-visible:bg-muted/40",
+        "flex shrink-0 items-center gap-3 bg-card/85 px-5 py-2.5",
+        "transition-colors hover:bg-muted/40 has-[>button:focus-visible]:bg-muted/40",
         className
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      {/* The title toggles the pane; the size controls sit outside it, so no
+          button is nested inside another interactive element. */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={size !== PaneSize.Min}
+        aria-label={
+          size === PaneSize.Min ? "Expandir panel" : "Minimizar panel"
+        }
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left focus-visible:outline-none"
+      >
         {Icon ? (
           <Icon
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
@@ -331,7 +329,7 @@ function LivePaneHeader({
             label
           )
         ) : null}
-      </div>
+      </button>
       <div className="flex shrink-0 items-center gap-2">
         {children}
         <PaneSizeControls />
@@ -376,13 +374,10 @@ function PaneSizeControls() {
   const goMax = useCallback(() => setSize(PaneSize.Max), [setSize]);
 
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label="Tamaño del panel"
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
       className={cn(
-        "flex items-center gap-px rounded-lg p-0.5",
+        "m-0 flex min-w-0 items-center gap-px rounded-lg border-0 p-0.5",
         "bg-muted/40 ring-1 ring-inset ring-border/40"
       )}
     >
@@ -404,7 +399,7 @@ function PaneSizeControls() {
         label="Maximizar"
         icon={Maximize2}
       />
-    </div>
+    </fieldset>
   );
 }
 

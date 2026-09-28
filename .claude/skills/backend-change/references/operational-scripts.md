@@ -5,7 +5,7 @@ Applicability: paths are relative to backend/. Read the project profile and matc
 One-off / operational tasks run OUTSIDE the request cycle: backfills, recalculations, bootstrappers, re-syncs. They reuse domain repos / use-cases / buses — never raw SQL for writes when a use-case exists.
 
 Patterns a script falls into:
-- **Dry-run/apply backfill** — read rows, log `would_*`, mutate + commit only under `--apply`.
+- **Dry-run/apply backfill** — read rows, log `would_*`, mutate through repositories (whose writes commit) only under `--apply`.
 - **Per-tenant bootstrapper** — iterate tenants, run a use-case once per tenant.
 - **Full-domain task** — build the wired `build_async_domain`/`build_async_bus`, use per-item sessions, optionally a CSV report.
 - **Interactive task** — `typer.prompt`/`confirm`, no `--apply` (the prompt is the safety gate).
@@ -47,8 +47,8 @@ async def dry_run(session: AsyncSession, tenant_id: UUID | None) -> None:
 async def apply_changes(session: AsyncSession, tenant_id: UUID | None) -> None:
     logger.info("apply.start")
     updated = 0
-    # Invoke existing use cases/repositories; their write operations own commits.
-    # Log progress after each successful operation; do not commit a second time.
+    # Mutate only through existing use cases/repositories: each write commits
+    # inside atomic_transaction. Never call session.commit() here.
     logger.info("apply.done", updated=updated)
 
 
@@ -80,30 +80,43 @@ if __name__ == "__main__":
     app()
 ```
 
-## Worked example — `scripts/backfill_project_status.py`
+## Worked example — installed `scripts/bootstrap_tenant_roles.py`
 
-A backfill that normalizes legacy `Project` rows to a default `ProjectStatus`, driven through the repo, dry-run by default:
+The installed exemplar is a per-tenant bootstrapper: it opens a session from
+`DatabaseConfig`, selects non-deleted tenants (optionally one `--tenant-slug`),
+and runs `TenantRolesBootstrapper` per tenant through `SQLTenantRoleRepository`;
+the repository's `persist` commits each role. It predates two skeleton
+conventions (it prints with `typer.echo` and has no dry run), so copy its session
+bootstrap and use-case reuse, not its output style.
+
+A dry-run companion for the same domain reads through the port and logs
+`would_*` events without writing:
 
 ```python
-async def dry_run(session: AsyncSession, tenant_id: UUID | None) -> None:
-    repo = SQLProjectRepository(session=session)
-    projects = await repo.find_all(tenant_id=tenant_id)
-    would_change = sum(1 for p in projects if p.status is None)
-    logger.info("dry_run.done", total=len(projects), would_change=would_change)
+from src.common.domain.enums.tenants import TenantRoleStatus
+from src.common.domain.permissions.roles import DEFAULT_TENANT_ROLES
+from src.tenants.application.use_cases.role.bootstrapper import TenantRolesBootstrapper
+from src.tenants.infrastructure.repositories.sql_tenant_role import SQLTenantRoleRepository
 
 
-async def apply_changes(session: AsyncSession, tenant_id: UUID | None) -> None:
-    repo = SQLProjectRepository(session=session)
-    projects = await repo.find_all(tenant_id=tenant_id)
-    updated = 0
-    for i, project in enumerate(projects):
-        if project.status is None:                  # compare before write → idempotent
-            project.status = ProjectStatus.ACTIVE
-            await repo.persist(project)
-            updated += 1
+async def dry_run(session: AsyncSession, tenant_ids: list[UUID]) -> None:
+    role_repository = SQLTenantRoleRepository(session=session)
+    for tenant_id in tenant_ids:
+        for definition in DEFAULT_TENANT_ROLES:
+            role = await role_repository.find_by_slug(tenant_id=tenant_id, slug=definition.slug)
+            if role is None:
+                logger.info("would_create", tenant_id=str(tenant_id), slug=definition.slug)
+            elif role.permissions != definition.permissions or role.status != TenantRoleStatus.ACTIVE:
+                logger.info("would_update", tenant_id=str(tenant_id), slug=definition.slug)
+
+
+async def apply_changes(session: AsyncSession, tenant_ids: list[UUID]) -> None:
+    role_repository = SQLTenantRoleRepository(session=session)
+    for i, tenant_id in enumerate(tenant_ids):
+        # The use case is idempotent and each repository write commits on its own.
+        await TenantRolesBootstrapper(tenant_id=tenant_id, role_repository=role_repository).execute()
         if i % 100 == 0:
-            logger.info("apply.progress", processed=i, total=len(projects))
-    logger.info("apply.done", updated=updated)
+            logger.info("apply.progress", processed=i, total=len(tenant_ids))
 ```
 
 ## Non-negotiable conventions
@@ -116,7 +129,7 @@ db_config = get_database_config()            # src.common.database.config
 async with db_config.session_maker() as session:
     ...
 ```
-`session_maker` has `expire_on_commit=False`, `autocommit=False`. The script owns
+`session_maker` has `expire_on_commit=False`. The script owns
 session/engine cleanup, including `db_config.dispose()` in finally. Existing
 repository write methods own their transactions through `atomic_transaction`;
 do not add a final commit or call a write method during dry-run. Those operations
@@ -127,13 +140,18 @@ adding a final commit cannot provide that guarantee.
 
 **Logging** = structured: `logger = get_logger(__name__)` from `src.common.application.logging`. Emit `logger.info("event.name", key=value, ...)` — first arg is an event slug (`dry_run.start`, `would_change`, `apply.progress`, `finished`), rest are kwargs. No f-string log messages. UUIDs → `str(...)`.
 
-**Dry-run / idempotency** — backfills default to a no-write dry run; `--apply` is opt-in (`apply: bool = False`). Split logic into `dry_run()` (read + log `would_*`) and `apply_changes()` (mutate + commit). Compare before writing so re-runs are idempotent:
+**Dry-run / idempotency** — backfills default to a no-write dry run; `--apply` is opt-in (`apply: bool = False`). Split logic into `dry_run()` (read + log `would_*`) and `apply_changes()` (mutate through a repository/use case, which commits). Compare before writing so re-runs are idempotent:
 ```python
-if project.status != ProjectStatus.ACTIVE:
-    project.status = ProjectStatus.ACTIVE
+if role.status != TenantRoleStatus.ACTIVE:
+    role.activate()
+    await role_repository.persist(role)
     updated += 1
 ```
-Log progress every N rows: `if i % 100 == 0: logger.info("apply.progress", processed=i, total=len(projects))`.
+Log progress every N rows: `if i % 100 == 0: logger.info("apply.progress", processed=i, total=len(items))`.
+
+**Type checking** — `ty.toml` includes only `src` and `config`, so `just backend
+check` does not type-check `scripts/` (or `tests/`). Review script types by hand
+and exercise the dry run before `--apply`.
 
 ## Reuse the domain — three escalating levels
 
@@ -142,48 +160,60 @@ Pick the lightest that works. Drive writes through use-cases/repos, not ad-hoc S
 1. **Repos directly** — instantiate `SQL*` repos with `session=session`:
    ```python
    tenant_repository = SQLTenantRepository(session=session)
-   tenants = await tenant_repository.find_all(exclude_ids=exclude_ids)
+   tenant = await tenant_repository.find_by_slug(tenant_slug)
    ```
 2. **A use-case** for the actual mutation (preferred over hand-written updates):
    ```python
-   await ProjectArchiver(project_id=project.uuid, project_repository=project_repo).execute()
+   await TenantRolesBootstrapper(tenant_id=tenant.uuid, role_repository=role_repository).execute()
    ```
 3. **A bus** when a use-case/query handler needs one:
    - Need only one query → hand-build a `MemoryQueryBus` and subscribe just what you use:
      ```python
      query_bus = MemoryQueryBus()
-     query_bus.subscribe(GetProjectByIdQuery, GetProjectByIdHandler(project_repository=project_repo))
-     project = await query_bus.ask(query=GetProjectByIdQuery(project_id=project_id))
+     query_bus.subscribe(SomeQuery, SomeQueryHandler(some_repository=some_repository))
+     result = await query_bus.ask(query=SomeQuery(...))
      ```
-   - Need the full wired domain (commands enqueue to background jobs, all modules wired) → use the builders:
+   - Need the full wired domain (commands enqueue to background jobs, all modules wired) → use the builders with one RabbitMQ connection and one Valkey client for the whole script:
      ```python
-     from src.common.infrastructure.domain_builder import build_async_domain
      from src.common.infrastructure.bus_builder import build_async_bus
-     domain = build_async_domain(session=session)
-     bus = build_async_bus(session=session, domain=domain)
-     await bus.command_bus.dispatch(ExportProjectsCommand(tenant_id=tenant_id), run_async=True)
+     from src.common.infrastructure.domain_builder import build_async_domain
+     from src.common.infrastructure.rabbitmq.broker import RabbitMQBroker
+     from src.common.infrastructure.rabbitmq.topology import CommandQueueTopology
+     from src.common.infrastructure.redis_client import create_redis_client
+
+     redis_client = create_redis_client(settings)
+     broker = await RabbitMQBroker.connect(
+         settings.rabbitmq_url, CommandQueueTopology.from_settings(settings), connection_name="script"
+     )
+     try:
+         domain = build_async_domain(session=session, redis_client=redis_client)
+         bus = build_async_bus(session=session, domain=domain, enqueuer=broker.command_enqueuer())
+         await bus.command_bus.dispatch(SomeCommand(...), run_async=True)
+     finally:
+         await broker.close()
+         await redis_client.aclose()
      ```
-     Note `build_async_bus`'s command bus enqueues to Redis-backed jobs — side effects (exports, notifications) become background work. Dispatch with `run_async=False` when you want a command to run inline.
+     Note `run_async=True` publishes to RabbitMQ for the worker — side effects (exports, notifications) become background work. Dispatch with `run_async=False` when you want a command to run inline.
 
 ## Invocation
 
 ```bash
 just backend bash
 # Inside the container, after implementing and reviewing the script:
-python scripts/backfill_project_status.py --apply --tenant-id <uuid>
-# expands to: docker compose ... python scripts/backfill_project_status.py --apply ...
+python scripts/<name>.py --apply --tenant-id <uuid>
+# installed example: python scripts/bootstrap_tenant_roles.py --tenant-slug <slug>
 ```
 Runs inside the API container (correct env + DB/Redis hostnames). Direct `python scripts/x.py` only works inside `just backend bash`. Frequently-run scripts may earn a dedicated `just` recipe.
 
 ## Reports
 
-Long-running tasks write a CSV to a gitignored output dir (`scripts/reports/`). Accumulate counts in a `@dataclass` report, then `report.write_csv(mode)` returning a timestamped `Path` (`backfill_project_status_apply_<YYYYMMDD_HHMMSS>.csv`); log the path in the final `finished` event.
+Long-running tasks may write a CSV report. No installed script does this yet and no report directory is gitignored: `scripts/reports/` is not in `.gitignore`, so add that ignore rule in the same change (or write outside the repository) before producing reports. Accumulate counts in a `@dataclass` report, then `report.write_csv(mode)` returning a timestamped `Path` (`<script>_<mode>_<YYYYMMDD_HHMMSS>.csv`); log the path in the final `finished` event.
 
 ## Heavy fan-out tasks
 
-For tasks that fan out over an external API or large dataset: discover with a `ThreadPoolExecutor` (sync SDKs in threads via `loop.run_in_executor`), then process each item in its OWN short-lived session with bounded batches + retry — not one giant transaction. Wrap each item in a `process_single_*_with_retry` helper and batch the `apply_changes` loop.
+For tasks that fan out over an external API or large dataset: call sync SDKs (boto3, `StorageService`) with `await asyncio.to_thread(...)` and bound concurrency with an `asyncio.Semaphore` inside an `asyncio.TaskGroup`; do not use `ThreadPoolExecutor`/`loop.run_in_executor`. Process each item in its OWN short-lived session with bounded batches + retry — not one giant transaction. Wrap each item in a `process_single_*_with_retry` helper and batch the `apply_changes` loop.
 
 ## Architectural references
-- [repositories.md](../../clean-fastapi-ddd/references/repositories.md) — `SQL*` repo construction, entity ↔ ORM builders.
-- [dependency-injection.md](../../clean-fastapi-ddd/references/dependency-injection.md) — how the request path builds the same contexts (`DomainContext`/`BusContext`) that scripts assemble by hand.
-- [cqrs-buses.md](../../clean-fastapi-ddd/references/cqrs-buses.md) — `MemoryQueryBus.subscribe`/`ask`, query/handler wiring.
+- [repositories.md](../../backend-architecture/references/repositories.md) — `SQL*` repo construction, entity ↔ ORM builders.
+- [dependency-injection.md](../../backend-architecture/references/dependency-injection.md) — how the request path builds the same contexts (`DomainContext`/`BusContext`) that scripts assemble by hand.
+- [cqrs-buses.md](../../backend-architecture/references/cqrs-buses.md) — `MemoryQueryBus.subscribe`/`ask`, query/handler wiring.

@@ -15,7 +15,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pytz>=2026.2",
     "httpx>=0.28.1",
-    "authlib>=1.7.2",
     "pydantic-settings>=2.15.0",
     "sentry-sdk[fastapi]>=2.35.0",
     "alembic>=1.18.5",
@@ -26,7 +25,6 @@ dependencies = [
     "pydantic[email]>=2.13.4",
     "python-slugify>=8.0.4",
     "python-multipart>=0.0.32",
-    "saq>=0.12.0",
     "redis>=8.1.0",
     "aiosmtplib>=5.1.2",
     "jinja2>=3.1.6",
@@ -37,6 +35,8 @@ dependencies = [
     "nanoid>=2.0.0",
     "structlog>=26.1.0",
     "greenlet>=3.5.5",
+    "joserfc>=1.7.3",
+    "aio-pika>=10.1.0",
 ]
 
 [dependency-groups]
@@ -73,7 +73,8 @@ include_external_packages = true
 
 # Clean Architecture direction inside every module: presentation may import
 # infrastructure/application/domain, but never the other way around. Layers in
-# parentheses are optional because not every module has all four (see AGENTS.md).
+# parentheses are optional because not every module has all four (see
+# .claude/skills/backend-architecture/references/layers.md).
 [% raw %][[[% endraw %]tool.importlinter.contracts[% raw %]]][% endraw %]
 name = "Clean Architecture layers within each module"
 type = "layers"
@@ -120,6 +121,10 @@ package = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# One event loop for the whole run: the session-scoped database engine is shared
+# by every test, which is only safe when fixtures and tests use the same loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 norecursedirs = "build dist _darcs {arch} *.egg node_modules */migrations/* */static/* docs *.egg-info .git __pycache__"
 # -s >> no capture warnings
 addopts = "--tb=short --maxfail=100 --strict-markers -s"
@@ -129,13 +134,15 @@ addopts = "--tb=short --maxfail=100 --strict-markers -s"
   python_functions = "test_*"
   log_cli_date_format = "%Y-%m-%d %H:%M:%S"
   console_output_style = "progress"
+  # Only targeted third-party noise; our own deprecations must stay visible.
+  # alembic.ini predates Alembic's `path_separator` option (used by migration tests).
   filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning"
+    "ignore:No path_separator found in configuration:DeprecationWarning",
   ]
   markers = [
     "single: Run single test to debug it",
     "asyncio: mark test as async",
     "api: end-to-end API test (requires the running stack — use `just backend test api`)",
-    "db: test requires the local PostgreSQL test database"
+    "db: test requires the local PostgreSQL test database",
+    "rabbitmq: test requires a reachable RabbitMQ broker (RABBITMQ_* settings)"
   ]

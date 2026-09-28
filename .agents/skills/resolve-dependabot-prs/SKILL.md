@@ -1,6 +1,7 @@
 ---
 name: resolve-dependabot-prs
 description: Resolve every open GitHub Dependabot pull request in the current repository with gh. Use when asked to triage, update, fix, merge, close, batch, consolidate, or regenerate lockfiles for Dependabot dependency PRs. Consolidate stable low-risk updates into one verified replacement PR per base branch, adapt code from official release notes and breaking changes, merge it, then close the superseded sources. Major, prerelease, non-SemVer, or uncertain updates remain isolated behind explicit approval.
+disable-model-invocation: true
 ---
 
 # Resolve Dependabot PRs
@@ -39,7 +40,7 @@ Resolve this loaded `SKILL.md` directory and use:
 
 Read the JSON schemas in `<skill-dir>/schemas/` before creating candidates,
 plans, or state. Do not assume the loaded copy is under `.claude`; the skill is
-also distributed to `.codex`, `.opencode`, and `.agents`.
+also distributed to `.agents` for Codex and OpenCode.
 
 ## 1. Inventory the complete set
 
@@ -47,6 +48,7 @@ Read repository and nested `AGENTS.md` instructions, verify `gh auth status`,
 then run:
 
 ```bash
+workdir="$(mktemp -d)"  # outside the repository
 python3 <skill-dir>/scripts/dependabot_prs.py inspect \
   --root "$(git rev-parse --show-toplevel)" \
   > "$workdir/inventory.json"
@@ -57,7 +59,9 @@ inventory with a manual partial PR list.
 
 `inspect` emits one mechanically consolidable group per base branch for sources
 whose versions parse as stable `patch` or `minor`. Major, prerelease, unknown,
-non-SemVer, and parser-error sources remain separate. The batch base is the
+non-SemVer, and parser-error sources remain separate. A grouped Dependabot PR
+contributes one transition per `Updates ... from ... to ...` line; it joins the
+batch only when every one of its transitions is stable `patch` or `minor`. The batch base is the
 current branch head; any later base or source-head movement invalidates the plan.
 
 ## 2. Review releases and choose the safe batch
@@ -110,7 +114,7 @@ the exact batch base SHA in an isolated clone/worktree, then:
 Common lockfile commands include:
 
 ```bash
-uv lock
+uv lock --directory backend
 pnpm -C frontend install --lockfile-only
 pnpm -C docs install --lockfile-only
 ```
@@ -120,13 +124,18 @@ matrix against the final tree. Derive the union of required checks from
 `AGENTS.md`, nested instructions, and CI. For this repository, use as applicable:
 
 ```bash
-just backend quality
+just backend check
+just backend check-migrations  # SQLAlchemy, Alembic, or database driver bumps
 just backend test all
 pnpm -C frontend verify
 pnpm -C docs types:check
 pnpm -C docs build
 just template check
-python3 scripts/sync_skills.py --check
+just agent-check
+actionlint                      # github-actions bumps
+uvx zizmor .github/workflows    # github-actions bumps
+docker buildx build --target production -f backend/Dockerfile backend    # docker bumps
+docker buildx build -f frontend/Dockerfile frontend                      # docker bumps
 ```
 
 Do not run the complete suite once per dependency. If a check fails, repair the

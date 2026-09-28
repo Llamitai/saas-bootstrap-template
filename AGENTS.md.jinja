@@ -1,38 +1,61 @@
 # Project working map
 
 This is a FastAPI + Next.js unirepo. Run project commands from the Git root.
-Read [the project profile](docs/internal/project-profile.md) for the current
-[[ project_name ]] core, active capabilities, contracts, setup and authoritative
-manifests. Examples, tests and docs must describe this boilerplate's current core.
+[The project profile](docs/content/docs/equipo/perfil-del-proyecto.md) is the
+source for the current [[ project_name ]] core, active capabilities, public
+contracts, setup and authoritative manifests. Read the relevant section when
+the task touches those facts. Examples, tests and docs must describe this
+boilerplate's current core.
 Remove unrelated product material instead of archiving it in this repository.
 
-## Architecture
+## Setup and commands
 
-- Backend: follow [backend/README.md](backend/README.md) and the linked guidance.
-  Clean Architecture/DDD dependencies point inward. ORM models always live in
-  `backend/src/common/database/models/`; shared domain models live in
-  `backend/src/common/domain/models/`. Copy the appropriate full or thin module
-  shape from the profile; do not invent missing layers.
-- Use cases are dataclasses implementing `UseCase.execute()`. Domain repository
-  ports have infrastructure adapters. Keep DomainError, presenters, router
-  `add_api_route()`, explicit DI and request transaction/rollback conventions.
-  Response classes own camelCase conversion; preserve RawJson exceptions.
-- Before changing frontend, read [its architecture](docs/internal/architecture/frontend-architecture.md).
-  Paths there are relative to `frontend/`. Keep `app -> features -> entities ->
-  shared`, public slice facades and thin routes. Never reintroduce global DDD
-  layers in frontend.
-- Browser requests use same-origin `/api` BFF routes and shared HTTP helpers.
-  Server-only requests may call the backend. Keep infrastructure credentials out
-  of client code; verify both sides when HTTP contracts change.
-- Before building/restyling UI, read [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md).
-  They govern strategy and visual design; live tokens are in frontend globals.css.
-  Use impeccable for relevant design work. Preserve forms, i18n/themes, keyboard
-  access and observable error/recovery states.
-- Preserve active auth, tenancy, permissions, cache identity and session contracts
-  from the profile. A skill example does not introduce or remove product rules.
+- Discover recipes with `just backend`, `just frontend`, `just docs`.
+- Local run: `just backend dev` (creates `backend/.env`, Docker stack, API on
+  :8200), `just frontend dev` (:3000), `just docs dev` (:4321).
+- Focused tests: `just backend test unit <paths>` (pytest paths relative to
+  `backend/`; needs Docker) and `just frontend test <filter>`.
+- `just check` is static; `just verify` adds backend tests and frontend
+  tests/build. API, browser, migration and docs checks stay explicit by impact;
+  [the verification guide](docs/content/docs/equipo/verificacion.md) selects them.
+- `quality`/`format`/`lint` recipes autofix files; review and CI use checks
+  without autofix. Optional lefthook hooks autofix and re-stage Biome/Ruff files;
+  they complement `just check` and CI.
+- Report commands, results and unverified behavior. Clean only owned resources;
+  worktrees do not isolate services. Never use `just docker-prune-global`, `just stop-all` or a
+  global prune as task cleanup.
+- Use Git/rg and focused reads when optional MCP/LSP tools are absent.
+
+## Area constitutions
+
+Each area has its own binding constitution. Read it before changing files there;
+the rules in this file apply everywhere.
+
+| Area | Constitution | Covers |
+| --- | --- | --- |
+| `backend/` | [backend/AGENTS.md](backend/AGENTS.md) | Clean Architecture/DDD, persistence, responses, sessions, Valkey/RabbitMQ, backend gates |
+| `frontend/` | [frontend/AGENTS.md](frontend/AGENTS.md) | Feature layers, BFF/session rules, state, UI and design, frontend gates |
+| `docs/` | [docs/AGENTS.md](docs/AGENTS.md) | Site structure, content rules, ADRs, generated API reference, docs gates |
+
+## Cross-cutting contracts
+
+- Browser requests stay same-origin under `/api` (proxy rewrite to the backend
+  plus BFF route handlers). Verify both sides when an HTTP contract changes and
+  refresh `docs/openapi/openapi.json` with openapi-sync (`just backend openapi`);
+  CI rejects a stale snapshot.
+- Preserve the auth, tenancy, session and cache-scope contracts in the profile;
+  permission checks exist but stay gated by `PERMISSIONS_ENABLED`. A skill
+  example does not introduce or remove product rules.
+- [ADR 0008](docs/content/docs/equipo/adr/0008-arquitectura-base-y-reglas-comprobadas.md)
+  explains the core decisions. Each area constitution lists its enforced gates;
+  CI also builds the production images and runs actionlint/zizmor on workflows.
+  A failing gate is a project rule, not noise.
 
 ## Development workflows
 
+- The seven project workflows are define-change, backend-change,
+  frontend-change, schema-change, verify-change, review-change and
+  validate-change.
 - Use define-change to establish scope, observable acceptance and verification.
   Reuse prior definition/authorization; a precise implementation request does not
   need another interview or approval.
@@ -46,38 +69,32 @@ Remove unrelated product material instead of archiving it in this repository.
   valid specs, complete task checkboxes and archive do not alone prove acceptance.
   Record evidence on the exact revision; renew affected results after changes.
 - Record new module boundaries, contracts, persistence, security or core-flow
-  decisions as Spanish [ADRs](docs/internal/adr/README.md).
-  Store them in `docs/internal/adr/` using the index's required sections;
+  decisions as Spanish [ADRs](docs/content/docs/equipo/adr/index.md).
+  Store them in `docs/content/docs/equipo/adr/` using the index's required sections;
   external skill defaults do not create another ADR tree or replace this format.
 - OpenSpec skills and generated opsx commands are upstream-managed: do not edit
-  their content. The seven project workflows own orchestration and acceptance.
+  their content. The project workflows own orchestration and acceptance.
   Before invoking sync/archive for completed work, establish verified/validated
   closure through validate-change. Structural CLI output does not grant closure.
 - A single integrator owns the combined diff and closure. Delegation is optional
   when authorized and useful for independent work. Writers need disjoint ownership
   or worktrees; shared contracts, lockfiles, models, wiring and CI have one owner.
-
-## Commands and evidence
-
-Use `just backend`, `just frontend`, `just docs` to discover recipes. Read
-[verification.md](docs/internal/verification.md) for checks, services and impact.
-`just check` is static; `just verify` adds backend tests and frontend tests/build.
-API, browser, migration and docs checks remain explicit by impact. Quality/format/
-lint repair recipes modify files; review and CI use checks without autofix.
-Report commands, results and unverified behavior. Clean only owned resources;
-worktrees do not isolate services. Do not use global prune as task cleanup.
-Optional hooks: `lefthook install`; hooks complement CI and acceptance.
-Use Git/rg and focused reads when optional MCP/LSP tools are absent.
+- Commit, push, open PRs, merge, release or deploy only when the user asks.
 
 ## Skills and client configuration
 
-Edit skills only in `.claude/skills/`. `.codex/skills/`, `.opencode/skills/` and
-`.agents/skills/` are versioned subsets from `scripts/skill_inventory.json`.
-The inventory identifies project-maintained skills. Codex discovers these only
-through `.agents/skills/`; do not duplicate them in `.codex/skills/`.
-Run `just sync-skills`, then `just agent-check`; commit sources and copies together.
-The check must see drift before repair. Do not distribute private paths, secrets
-or local trust state. CLAUDE.md imports this map; client integrations are optional.
+Edit skills only in `.claude/skills/`; `.agents/skills/` is the single versioned
+copy, read by Codex and OpenCode and listed in `scripts/skill_inventory.json`.
+Never add `.codex/skills/` (Codex lists duplicate names) or `.opencode/skills/`
+(redundant). Claude Code, Codex and OpenCode support `AGENTS.md`, but their
+discovery paths differ; explicitly read the applicable area constitution before
+editing there. Never add a `CLAUDE.md` (agent-check rejects it).
+Client integrations (`.mcp.json`, context-mode) are optional conveniences, not
+prerequisites.
+After editing a skill, run `just agent-check` to observe the expected drift,
+then `just sync-skills` and `just agent-check` again. Commit sources and copies
+together. Do not distribute private paths, secrets or local trust state; client
+integrations are optional.
 
 ## Template and style
 
@@ -88,7 +105,8 @@ with `just template check` when these tools exist. Publishing is separate from
 acceptance; preserve canonical redeploy guards. Generated projects do not maintain
 or publish this template machinery.
 
-Code/instruction files and commit messages are English. `docs/content/`,
-`docs/internal/` and module READMEs are Spanish. Python uses snake_case, type hints
+Documentation lives in the Fumadocs site; its rules are in
+[docs/AGENTS.md](docs/AGENTS.md). Code/instruction files and commit messages are English. `docs/content/`
+and module READMEs are Spanish. Python uses snake_case, type hints
 and async/await; TypeScript uses camelCase and functional components. Read runtime
 versions and design tokens from their sources instead of copying them here.

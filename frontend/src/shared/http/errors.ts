@@ -160,65 +160,67 @@ export function errorFromAxios(
   };
 }
 
+// Messages below are English developer fallbacks. User-facing text comes from
+// the `HttpErrors` catalog keyed by `code` (see useHttpErrorMessage).
 function errorFromStatus(error: AxiosError): ErrorFeedback {
   const statusCode = error.response?.status || 0;
-  let message = "Error desconocido";
+  let message = "Unknown error";
   let code = "UNKNOWN_ERROR";
 
   switch (statusCode) {
     case 400:
-      message = "Solicitud invalida";
+      message = "Bad request";
       code = "BAD_REQUEST";
       break;
     case 401:
-      message = "No autorizado";
+      message = "Unauthorized";
       code = "UNAUTHORIZED";
       break;
     case 403:
-      message = "Acceso denegado";
+      message = "Forbidden";
       code = "FORBIDDEN";
       break;
     case 404:
-      message = "Recurso no encontrado";
+      message = "Not found";
       code = "NOT_FOUND";
       break;
     case 409:
-      message = "Conflicto de datos";
+      message = "Conflict";
       code = "CONFLICT";
       break;
     case 422:
-      message = "Datos de validacion incorrectos";
+      message = "Validation error";
       code = "VALIDATION_ERROR";
       break;
     case 429:
-      message = "Demasiadas solicitudes";
+      message = "Too many requests";
       code = "RATE_LIMIT";
       break;
     case 500:
-      message = "Error interno del servidor";
+      message = "Internal server error";
       code = "INTERNAL_SERVER_ERROR";
       break;
     case 502:
-      message = "Gateway incorrecto";
+      message = "Bad gateway";
       code = "BAD_GATEWAY";
       break;
     case 503:
-      message = "Servicio no disponible";
+      message = "Service unavailable";
       code = "SERVICE_UNAVAILABLE";
       break;
     case 504:
-      message = "Timeout del gateway";
+      message = "Gateway timeout";
       code = "GATEWAY_TIMEOUT";
       break;
     default:
       if (statusCode >= 500) {
-        message = "Error del servidor";
+        message = "Server error";
         code = "SERVER_ERROR";
       } else if (statusCode >= 400) {
-        message = "Error en la solicitud";
+        message = "Client error";
         code = "CLIENT_ERROR";
       } else {
-        message = error.message || "Error de conexion";
+        message = error.message || "Network error";
         code = "NETWORK_ERROR";
       }
   }
@@ -230,7 +232,7 @@ function errorFromStatus(error: AxiosError): ErrorFeedback {
 }
 
 export function getFirstErrorMessage(errorFeedback: ErrorFeedback): string {
-  return errorFeedback.errors[0]?.message ?? "Error desconocido";
+  return errorFeedback.errors[0]?.message ?? "Unknown error";
 }
 
 export function isAuthError(error: AxiosError): boolean {

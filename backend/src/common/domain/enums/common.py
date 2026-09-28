@@ -4,6 +4,7 @@ from src.common.domain.enums.base_enum import BaseEnum
 class ProcessLabel(BaseEnum):
     admin = "admin"
     api = "api"
+    worker = "worker"
 
     @property
     def is_admin(self):

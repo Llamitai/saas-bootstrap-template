@@ -33,10 +33,20 @@ function attachAuthHeaders(config: InternalAxiosRequestConfig) {
   return config;
 }
 
-let refreshPromise: Promise<string | null> | null = null;
+/**
+ * `token` on success; `rejected` when /api/auth/refresh answered 401 (the
+ * session is gone); `transient` for rate limits, 5xx or network errors, where
+ * the cookies are kept and the original request simply fails.
+ */
+type RefreshOutcome =
+  | { kind: "token"; token: string }
+  | { kind: "rejected" }
+  | { kind: "transient" };
+
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 let isRedirecting = false;
 
-function deduplicatedRefresh(): Promise<string | null> {
+function deduplicatedRefresh(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = refreshAccess().finally(() => {
       refreshPromise = null;
@@ -45,14 +55,18 @@ function deduplicatedRefresh(): Promise<string | null> {
   return refreshPromise;
 }
 
-async function refreshAccess(): Promise<string | null> {
+async function refreshAccess(): Promise<RefreshOutcome> {
   try {
     const res = await axios.post("/api/auth/refresh", null, {
       withCredentials: true,
     });
-    return res.data?.accessToken ?? null;
-  } catch {
-    return null;
+    const token = res.data?.accessToken;
+    return typeof token === "string" && token
+      ? { kind: "token", token }
+      : { kind: "rejected" };
+  } catch (error) {
+    const status = axios.isAxiosError(error) ? error.response?.status : null;
+    return status === 401 ? { kind: "rejected" } : { kind: "transient" };
   }
 }
 
@@ -81,16 +95,16 @@ function createRefreshInterceptor(httpClient: ReturnType<typeof axios.create>) {
     if (isAuthError && !original?._retry && !isRedirecting) {
       original._retry = true;
 
-      const newToken = await deduplicatedRefresh();
+      const outcome = await deduplicatedRefresh();
 
-      if (newToken) {
-        getAuthHeaderContext().setAccessToken(newToken);
+      if (outcome.kind === "token") {
+        getAuthHeaderContext().setAccessToken(outcome.token);
         original.headers = original.headers ?? {};
-        original.headers.Authorization = `Bearer ${newToken}`;
+        original.headers.Authorization = `Bearer ${outcome.token}`;
         return httpClient(original);
       }
 
-      handleRefreshFailure();
+      if (outcome.kind === "rejected") handleRefreshFailure();
     }
 
     return Promise.reject(error);

@@ -10,22 +10,65 @@ x-common-env: &common-env
   INFISICAL_MACHINE_CLIENT_ID: ${INFISICAL_MACHINE_CLIENT_ID}
   INFISICAL_MACHINE_CLIENT_SECRET: ${INFISICAL_MACHINE_CLIENT_SECRET}
 
+# Runtime hardening shared by every service: no privilege escalation, no Linux
+# capabilities (all processes run as non-root on ports > 1024) and bounded logs.
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
+  # Applies `alembic upgrade head` before serving; a failed migration stops the
+  # start (fail fast) instead of serving an outdated schema.
   api:
+    <<: *hardening
     image: ghcr.io/[[ project_slug ]]/[[ project_slug ]]-api-dev:${IMAGE_TAG:-latest}
     environment:
       <<: *common-env
       PROCESS_LABEL: api
-    command: /start
+    command: ["/start", "api"]
+    # Published on all interfaces: the frontend BFF and the reverse proxy may
+    # reach the API through the host port (see deploy-mvp env-vars reference).
     ports:
       - "14015:8200"
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8200/api/py/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    networks:
+      - shared-network
+
+  # RabbitMQ worker: same image, own process and restart policy. Starts once the API
+  # is healthy, i.e. after migrations were applied.
+  worker:
+    <<: *hardening
+    image: ghcr.io/[[ project_slug ]]/[[ project_slug ]]-api-dev:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      PROCESS_LABEL: worker
+    command: ["/start", "worker"]
+    # SIGTERM stops consuming; in-flight commands get RABBITMQ_SHUTDOWN_GRACE_SECONDS.
+    stop_grace_period: 45s
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      disable: true
     networks:
       - shared-network
 
   directus-admin:
-    image: directus/directus:12.1.1
-    restart: unless-stopped
+    <<: *hardening
+    image: directus/directus:12.3.1
     ports:
       - "14020:8055"
     volumes:
@@ -43,6 +86,12 @@ services:
       DB_PASSWORD: ${ADMIN_DB_PASSWORD}
       PUBLIC_URL: ${ADMIN_PUBLIC_URL}
       WEBSOCKETS_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8055/server/ping').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     networks:
       - shared-network
 

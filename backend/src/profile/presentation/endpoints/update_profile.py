@@ -1,9 +1,8 @@
 from fastapi import Depends, status
 
 from src.common.application.commands.users import PersistUserCommand
-from src.common.domain.entities.common.requests import CamelCaseRequest
+from src.common.domain.entities.common.requests import CamelCaseRequest, PhoneNumberRequest
 from src.common.domain.entities.email_address import RawEmailAddress
-from src.common.domain.entities.phone_number import RawPhoneNumber
 from src.common.domain.helpers.models import override_model_properties
 from src.common.domain.models.user import User
 from src.common.infrastructure.context_builder import AppContext
@@ -17,7 +16,7 @@ class UpdateProfileRequest(CamelCaseRequest):
     first_name: str | None = None
     last_name: str | None = None
     email_address: RawEmailAddress | None = None
-    phone_number: RawPhoneNumber | None = None
+    phone_number: PhoneNumberRequest | None = None
 
 
 async def update_profile(

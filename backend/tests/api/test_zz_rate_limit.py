@@ -41,3 +41,24 @@ def test_login__rate_limited_after_too_many_attempts():
     expect(last_status).to(equal(HTTP_429_TOO_MANY_REQUESTS))
     expect(int(response.headers["Retry-After"])).to(be_above(0))
     expect(response.headers["X-RateLimit-Remaining"]).to(equal("0"))
+
+
+# Must match ``register_rate_limit`` in src/users/presentation/router.py.
+REGISTER_RATE_LIMIT = 10
+
+
+def test_register__rate_limited_after_too_many_attempts():
+    last_status = None
+
+    for _ in range(REGISTER_RATE_LIMIT + 5):
+        response = requests.post(
+            url=f"{BASE_URL}/v1/users",
+            json={"email": USER_EMAIL, "password": "pass1234567890"},
+            timeout=30,
+        )
+        last_status = response.status_code
+        if last_status == HTTP_429_TOO_MANY_REQUESTS:
+            break
+
+    expect(last_status).to(equal(HTTP_429_TOO_MANY_REQUESTS))
+    expect(int(response.headers["Retry-After"])).to(be_above(0))

@@ -48,6 +48,13 @@ class SyncSkillsTests(unittest.TestCase):
         target.unlink()
         self.assertEqual(self.run_sync("--check"), 1)
 
+    def test_claude_eval_suite_is_not_distributed(self):
+        (self.source / "evals/case").mkdir(parents=True)
+        (self.source / "evals/case/prompt.md").write_text("Trigger case")
+        self.assertEqual(self.run_sync(), 0)
+        self.assertFalse((self.root / ".agents/skills/example/evals").exists())
+        self.assertEqual(self.run_sync("--check"), 0)
+
     def test_orphan_is_not_deleted(self):
         self.run_sync()
         orphan = self.root / ".agents/skills/unmanaged"

@@ -1,6 +1,7 @@
 "use client";
 
 import { Crown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useSessionStore } from "@/features/auth";
 import {
   OnboardTenantWizard,
@@ -25,6 +26,7 @@ import {
  * the first entry.
  */
 export function SuperuserActionsMenu() {
+  const t = useTranslations("AppShell");
   const isSuperuser = useSessionStore((s) => s.user?.isSuperuser === true);
   const openOnboardWizard = useOnboardTenantWizardStore((s) => s.openWizard);
 
@@ -46,7 +48,7 @@ export function SuperuserActionsMenu() {
             <Button
               variant="secondary"
               size="icon"
-              aria-label="Acciones de superusuario"
+              aria-label={t("superuserActions")}
             >
               <Crown className="h-[1.2rem] w-[1.2rem] text-warning-deep" />
             </Button>
@@ -55,11 +57,11 @@ export function SuperuserActionsMenu() {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuGroup>
             <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-              Superusuario
+              {t("superuser")}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleRegisterTenant}>
-              Registrar Tenant
+              {t("registerTenant")}
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

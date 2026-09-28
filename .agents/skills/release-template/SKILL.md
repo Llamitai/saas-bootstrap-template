@@ -1,6 +1,7 @@
 ---
 name: release-template
 description: Safely release the canonical Copier template by inspecting changes since the latest SemVer tag, proposing the next version, validating the template, requesting explicit approval, and then creating and pushing the exact tag. Use when the user invokes `/release-template` or asks to version, tag, publish, or release `Llamitai/wise` to `Llamitai/saas-bootstrap-template`.
+disable-model-invocation: true
 ---
 
 # Release Template
@@ -15,6 +16,8 @@ approval.
 - Never push `main`, use `--tags`, force, delete, move, or recreate a tag.
 - Never edit or push the generated mirror directly.
 - Stop on every failed guard or validation. Do not work around the script.
+- A push rejected by a tag protection rule or ruleset is a stop condition;
+  report it and never bypass it.
 - Do not interpret prior approval, silence, or an ambiguous response as approval
   for the current tag and SHA.
 
@@ -22,7 +25,7 @@ approval.
 
 Resolve the absolute directory containing this loaded `SKILL.md`. Use
 `<skill-dir>/scripts/release_template.py` regardless of whether this skill was
-loaded from `.claude`, `.codex`, `.opencode`, or `.agents`. Do not assume the
+loaded from `.claude` or `.agents`. Do not assume the
 script is under the repository's top-level `scripts/` directory.
 
 ## 1. Inspect without mutation
@@ -70,10 +73,14 @@ previous tag.
 
 ## 3. Validate before asking
 
-Run the repository's complete template preflight:
+Run the repository's template preflight. `check` compares the built template;
+`preflight` mirrors the publication workflow locally (render a project, run its
+backend and frontend suites, smoke `copier update` from the latest tag) without
+pushing anything:
 
 ```bash
 just template check
+just template preflight
 ```
 
 If it fails, summarize the failure and stop. Do not ask for release approval.

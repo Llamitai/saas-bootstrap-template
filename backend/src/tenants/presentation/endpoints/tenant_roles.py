@@ -1,8 +1,9 @@
 from fastapi import Depends, status
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from src.common.domain.contexts.domain import DomainContext
 from src.common.domain.entities.common.collection import ListFilters
+from src.common.domain.entities.common.requests import CamelCaseRequest
 from src.common.domain.enums.tenants import TenantRoleStatus
 from src.common.domain.models.tenants.tenant_user import TenantUser
 from src.common.domain.permissions.checker import check_tenant_permission
@@ -36,7 +37,7 @@ async def get_tenant_roles(
     )
 
 
-class CreateTenantRole(BaseModel):
+class CreateTenantRole(CamelCaseRequest):
     name: str
     permissions: list[str] = Field(default_factory=list)
     status: TenantRoleStatus = TenantRoleStatus.ACTIVE

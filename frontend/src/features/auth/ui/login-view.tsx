@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,7 @@ export function LoginView() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [serverError, setServerError] = useState("");
   const { setSession } = useSessionActions();
+  const queryClient = useQueryClient();
 
   // The Google callback lands back here with ?error= on failure.
   useEffect(() => {
@@ -72,6 +74,8 @@ export function LoginView() {
 
     try {
       const result = await loginWithPassword({ email, password });
+      // A previous user's cached responses must not leak into this session.
+      queryClient.clear();
       setSession(result.user, result.tenant, result.tenantRole, "");
       router.push(result.tenant ? "/members" : "/unassigned");
     } catch (error) {

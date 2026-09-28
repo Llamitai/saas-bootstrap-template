@@ -6,7 +6,7 @@ emails to the listed members.
 from __future__ import annotations
 
 from fastapi import status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
 
 from src.auth.presentation.presenters.session import TenantPublicPresenter
 from src.common.domain.entities.common.requests import CamelCaseRequest
@@ -26,7 +26,7 @@ from src.tenants.presentation.presenters.tenant_user_invitation import (
 )
 
 
-class OnboardingMemberRequest(BaseModel):
+class OnboardingMemberRequest(CamelCaseRequest):
     email: EmailStr
     role_slug: str = Field(default="member", min_length=1)
 

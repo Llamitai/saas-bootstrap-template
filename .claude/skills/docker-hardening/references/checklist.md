@@ -2,11 +2,13 @@
 
 ~60 items, grouped by defense-in-depth layer. Use to print or paste into a PR description. Each item is a yes/no question. Map to the audit categories in `SKILL.md` §3.
 
+Contents: [1 Image](#layer-1--image) · [2 Build](#layer-2--build) · [3 Runtime](#layer-3--runtime-image-level--compose-level) · [4 Network](#layer-4--network) · [5 Host](#layer-5--host--daemon) · [6 Orchestration](#layer-6--orchestration--secrets) · [7 Monitoring](#layer-7--monitoring--detection) · [Severity](#severity-tagging) · [Common mistakes](#common-security-mistakes-cheat-sheet)
+
 ---
 
 ## Layer 1 — Image
 
-- [ ] **I1.** Base image is a Docker Official Image, Verified Publisher, internal mirror, distroless, or Wolfi/Chainguard. *(A10, C6)*
+- [ ] **I1.** Base image is a Docker Official Image, Verified Publisher, internal mirror, distroless, Docker Hardened Images, or Wolfi/Chainguard. *(A10, C6)*
 - [ ] **I2.** Base image pinned by digest: `FROM image:tag@sha256:…`. *(A7, C7)*
 - [ ] **I3.** Final stage uses a minimal base (slim / alpine / distroless / scratch). *(A2, G)*
 - [ ] **I4.** Only required packages installed (`--no-install-recommends`, `--no-cache`). *(A2)*
@@ -25,9 +27,9 @@
 - [ ] **B8.** Lockfile-driven installs (`npm ci`, `pip --require-hashes`, `bundle install --deployment`, etc.). *(A6)*
 - [ ] **B9.** External binaries verified with `sha256sum --check` or `gpg --verify`. *(A6)*
 - [ ] **B10.** SBOM generated (`docker buildx --sbom=true` or `syft`) and stored as an artifact. *(C2)*
-- [ ] **B11.** Provenance attestation `--provenance=true` (SLSA Level 2+). *(C3)*
-- [ ] **B12.** Image signed (cosign keyless / KMS) on push. *(C4)*
-- [ ] **B13.** Image scanned in CI with `--exit-code 1` on HIGH/CRITICAL (Scout / Trivy / Grype). *(A11)*
+- [ ] **B11.** Provenance `--provenance=mode=max` built on hosted CI, signed (cosign attest / GitHub attestation) and verified at deploy — only then claim SLSA Build L2. *(C3)*
+- [ ] **B12.** Image signed on push (cosign keyless / KMS, Notation or GitHub attestations); no Docker Content Trust (retired). *(C4)*
+- [ ] **B13.** Image scanned in CI with a failing exit on HIGH/CRITICAL (`trivy --exit-code 1`, `docker scout cves --exit-code`, `grype --fail-on high`); scanner actions pinned by commit SHA, scanner images by digest. *(A11)*
 - [ ] **B14.** `.dockerignore` excludes secrets, VCS, IDE, build artifacts. *(C8)*
 
 ## Layer 3 — Runtime (image-level + compose-level)

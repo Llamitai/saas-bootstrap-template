@@ -12,5 +12,10 @@ export const serverConfig = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   // Public origin for OAuth redirects; falls back to the request origin when unset.
   appUrl: process.env.NEXT_PUBLIC_APP_URL || "",
+  // Header a trusted edge sets with the real client IP (e.g. cf-connecting-ip,
+  // x-real-ip). Unset: the last x-forwarded-for hop, the one closest to Next.
+  trustedClientIpHeader: (process.env.TRUSTED_CLIENT_IP_HEADER || "")
+    .trim()
+    .toLowerCase(),
   ...publicConfig,
 };

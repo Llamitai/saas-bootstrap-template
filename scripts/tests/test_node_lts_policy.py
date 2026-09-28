@@ -53,12 +53,6 @@ def _fixture(root: Path, *, canonical: bool = False) -> None:
     )
     _write(
         root,
-        ".github/workflows/node-lts.yml",
-        "jobs:\n  prepare:\n    steps:\n      - uses: actions/setup-node@v7\n"
-        "        with:\n          node-version-file: .nvmrc\n",
-    )
-    _write(
-        root,
         ".github/dependabot.yml",
         'ignore:\n  - dependency-name: "@types/node"\n'
         '    update-types: ["version-update:semver-major"]\n'
@@ -181,7 +175,7 @@ class RepositoryPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(policy.PolicyError, "must use Node 24"):
                 policy.check_repository(root)
 
-    def test_dynamic_node_version_is_limited_to_lts_workflow(self) -> None:
+    def test_workflows_may_not_use_a_dynamic_node_version(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _fixture(root)

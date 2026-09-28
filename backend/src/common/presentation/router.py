@@ -1,42 +1,41 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, status
 
-from src.common.infrastructure.responses.api_json import ApiJSONResponse
-from src.common.settings import settings
+from src.common.presentation.endpoints.health import health, health_ready
+from src.common.presentation.endpoints.root import home, sentry_debug
+from src.common.presentation.schemas.envelopes import Envelope, MessageResponse, StatusResponse
+from src.common.presentation.schemas.health import HealthResponse, ReadinessResponse
 
 common_router = APIRouter()
 
+common_router.add_api_route(
+    "/",
+    home,
+    methods=["GET"],
+    summary="API root",
+    response_model=Envelope[StatusResponse],
+)
+common_router.add_api_route(
+    "/sentry-debug",
+    sentry_debug,
+    methods=["GET"],
+    summary="Trigger a Sentry test error (local environments only)",
+    response_model=MessageResponse,
+)
 
-@common_router.get("/")
-async def home():
-    return ApiJSONResponse(
-        content={
-            "status": "OK",
-        }
-    )
-
-
-@common_router.get("/sentry-debug")
-async def sentry_debug():
-    """
-    Test endpoint to verify Sentry integration.
-
-    This endpoint intentionally raises an exception to test error tracking.
-    Use it to verify that errors are being sent to Sentry correctly.
-
-    Only available in development environment.
-
-    Example:
-        GET /sentry-debug
-
-    Raises:
-        HTTPException: Always raises a 500 error for testing
-    """
-    if not settings.ENVIRONMENT.is_local:
-        raise HTTPException(
-            status_code=404,
-            detail="Endpoint only available in development",
-        )
-
-    # This will trigger a Sentry error
-    _division_by_zero = 1 / 0  # ty: ignore[division-by-zero]
-    return {"message": "This should never be reached"}
+# Container probes: public, no authentication, no rate limit and no envelope.
+health_router = APIRouter(prefix="/api/py/health", tags=["health"])
+health_router.add_api_route(
+    "",
+    health,
+    methods=["GET"],
+    summary="Liveness probe",
+    response_model=HealthResponse,
+)
+health_router.add_api_route(
+    "/ready",
+    health_ready,
+    methods=["GET"],
+    summary="Readiness probe (PostgreSQL and Redis)",
+    response_model=ReadinessResponse,
+    responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
+)
