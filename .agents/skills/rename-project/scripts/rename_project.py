@@ -113,9 +113,13 @@ def replace_line(
 ) -> str:
     tokens = config["tokens"]
     display_replacement = slug if package_context(path, line, config) else display_name
+    for index, literal in enumerate(config.get("preserve_literals", [])):
+        line = line.replace(literal, f"\x00preserve_{index}\x00")
     line = line.replace(tokens["project_name"], display_replacement)
     line = line.replace(tokens["project_slug"], slug)
     line = line.replace(tokens["python_name"], python_name)
+    for index, literal in enumerate(config.get("preserve_literals", [])):
+        line = line.replace(f"\x00preserve_{index}\x00", literal)
     return line
 
 

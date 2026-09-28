@@ -1,199 +1,158 @@
 # [[ project_name ]]
 
-[[ project_name ]] is a multi-tenant starter for authenticated B2B products. It
-ships the core product surface most SaaS apps need: auth, tenants, members,
-invitations, roles, permissions, profile, tenant settings/avatar, superuser
-onboarding, transactional email scaffolding, asset storage, and Directus as the
-internal admin console.
+The canonical source for a multi-tenant B2B SaaS starter. This repository
+contains the FastAPI API, Next.js app, documentation site, development tooling,
+and the builder that publishes a versioned Copier template. Generated products
+add their own domain features on top of this core.
 
-## Apps
+## Current core
 
-| App | Stack | Default port | Path |
-|:---|:---|:---:|:---|
-| Backend | FastAPI · Python 3.14 · PostgreSQL · Valkey · RabbitMQ · RustFS (S3) · Mailpit · Directus | `8200` | [`backend/`](backend/) |
-| Frontend | Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/Base UI | `3000` | [`frontend/`](frontend/) |
-| Docs | React Router + Fumadocs documentation site (guides, concepts, generated API reference) | `4321` | [`docs/`](docs/) |
+| Area | What is available |
+| --- | --- |
+| Auth and users | Login, logout, refresh, Google OAuth, password reset, sessions, and profile management |
+| Tenancy | Tenants, settings/avatar, members, invitations, roles, and superuser onboarding |
+| Permissions | Checks are modeled but do not deny access while `PERMISSIONS_ENABLED = False`; server-side tenant membership is enforced |
+| Assets | S3 storage is wired in; local development uses RustFS. A disk adapter exists but is not wired in |
+| Messaging | SMTP and RabbitMQ worker scaffolding for deferred commands |
+| Internal admin | Directus runs as a separate service |
+| Frontend | Authenticated Next.js app; browser requests stay same-origin under `/api` |
+| Docs | React Router + Fumadocs site with an API reference generated from the FastAPI schema |
 
-## Core Surface
+The [project profile](docs/content/docs/equipo/perfil-del-proyecto.md) records
+the active capabilities and contracts. Runtime versions come from
+[`backend/pyproject.toml`](backend/pyproject.toml),
+[`frontend/package.json`](frontend/package.json), and
+[`docs/package.json`](docs/package.json).
 
-- **Auth**: login, logout, refresh, Google OAuth, password reset, and session lookup.
-- **Users / profile**: authenticated user data and profile management.
-- **Tenants**: onboarding, active tenant selection, settings, avatar, and soft delete.
-- **Members / invitations**: tenant membership, invites, acceptance, cancellation, and member profile updates.
-- **Roles / permissions**: default role bootstrap, tenant role management, and permission checks.
-- **Assets**: tenant/member images through local disk or object storage adapters.
-- **Superuser**: internal tenant onboarding flows.
-- **Messaging**: transactional email scaffolding.
-- **Directus**: internal admin console for operational metadata.
-
-## Repository Structure
+## Repository layout
 
 ```text
-[[ project_slug ]]/
-  backend/        FastAPI API and backend services
-  frontend/       Next.js app
-  docs/           Documentation site; content in docs/content/docs
-  .codex/         Codex project config (optional MCP servers)
-  .claude/        Claude Code config and canonical skills
-  .opencode/      OpenCode config and commands
-  .agents/        Skill copies read by Codex and OpenCode
-  just/           just command modules
-  justfile        top-level development commands
+backend/          FastAPI API, worker, migrations, and local Compose stack
+frontend/         Next.js application and BFF routes
+docs/             Fumadocs site and OpenAPI snapshot
+template/         Copier questionnaire for the published mirror
+scripts/          Template builder, checks, and repository tooling
+.claude/skills/    Canonical project skills for Claude Code
+.agents/skills/    Versioned skill copies for Codex and OpenCode
+just/             Area-specific just recipes
 ```
 
-Documentation, tests, fixtures, and examples must describe [[ project_name ]] only.
-Keep them aligned with the current core modules listed above.
+`AGENTS.md` is the shared instruction source for Claude Code, Codex, and
+OpenCode; each app area has its own `AGENTS.md`. The MCP integrations in this
+repository are optional. Edit skills only in `.claude/skills/`, then run
+`just sync-skills` and `just agent-check`.
 
-## Agent Tooling
+## Create a project
 
-This repository is intended to be self-sufficient for agent-assisted work with
-Codex, Claude Code, and OpenCode.
+### Copier (recommended)
 
-- `AGENTS.md` is the shared project instruction source of truth.
-- `.codex/`, `.claude/`, `.opencode/`, and `.agents/` are versioned on purpose.
-  They contain project-specific skills, commands, rules, and MCP wiring.
-- Project configs should stay portable. Do not commit user-specific absolute
-  paths, local trust state, secrets, or machine-only integrations.
-- CodeGraph is available for structural code search through the configured MCP
-  server. Use it for symbols, call graphs, impact checks, and module surveys.
-- Skills are part of the repo contract. Do not ignore skill directories just to
-  reduce search/index noise.
-
-## First run
-
-### Prerequisites
-
-- **Docker** with the Compose plugin (the whole backend runs in containers).
-- **[just](https://github.com/casey/just)** — command runner for every dev task.
-- **Node.js 24** LTS (major pinned in `.nvmrc`).
-- **pnpm 11** — `corepack enable` activates the version pinned in
-  `frontend/package.json`.
-- Optional: **uv** and **lefthook** for the backend pre-commit hooks
-  (`lefthook install`).
-
-The repository keeps every runtime, container, CI, engine, and `@types/node`
-pin on one Node.js LTS major; the `Node LTS policy` CI check rejects drift. To
-move to a newer LTS, run `python3 scripts/node_lts_policy.py latest` and then
-`python3 scripts/node_lts_policy.py update <major>`, and open a normal PR.
-
-### Steps
-
-1. Create your repository from this template (or clone it) and enter it.
-2. Copy the environment files:
-
-   ```bash
-   cp backend/.env.example backend/.env
-   cp frontend/.env.example frontend/.env
-   ```
-
-3. Start the backend stack — docker compose brings up the API plus Postgres,
-   Valkey, RabbitMQ with its worker, RustFS (S3-compatible storage), Mailpit, and Directus:
-
-   ```bash
-   just backend dev
-   ```
-
-4. In another terminal, apply migrations, seed demo data, and create the
-   S3 bucket (in that order):
-
-   ```bash
-   just backend migrate
-   just backend seed
-   just backend minio-setup
-   ```
-
-5. Install frontend dependencies and start the frontend:
-
-   ```bash
-   just frontend install
-   just frontend dev
-   ```
-
-6. Log in at `http://localhost:3000` with the seeded owner:
-   `[[ owner_email ]]` / `12345678x`.
-
-### Using this as a template
-
-**Recommended: Copier.** Generate a fully renamed project from the published
-template mirror and receive future boilerplate improvements with
-`copier update`:
+Copier renders product names and records the source release in
+`.copier-answers.yml`, so later releases can be merged into the project:
 
 ```bash
-uvx copier copy --trust gh:Llamitai/[[ project_slug ]]-template my-app
+uvx --from 'copier>=9.6,<10' copier copy --trust gh:Llamitai/saas-bootstrap-template my-app
+cd my-app
+uv lock --directory backend
 ```
 
-`--trust` is required because the template declares `_tasks` (it copies
-`backend/.env.example` to `backend/.env` and runs `git init` on first copy).
-After generating, regenerate the backend lockfile — the production image
-installs with `uv sync --locked` and fails on the stale one:
+`--trust` allows the template's first-copy tasks to create `backend/.env`
+and initialize Git. The backend lock must be regenerated before a production
+build because that image installs with `uv sync --locked`. Commit the initial
+project state before its first template update.
+
+### GitHub template or clone
+
+A copy made with GitHub's **Use this template** starts with neutral branding.
+Use the [`rename-project` skill](.claude/skills/rename-project/SKILL.md) to
+adapt it. This path has no Copier answers file and cannot run `copier update`;
+later changes need a reviewed manual port from a known canonical revision.
+
+## Sync an existing project
+
+The canonical repository publishes its Copier mirror,
+[`Llamitai/saas-bootstrap-template`](https://github.com/Llamitai/saas-bootstrap-template),
+only when a version tag passes the
+[`publish-template.yml`](.github/workflows/publish-template.yml) pipeline.
+Unreleased changes here are not available to generated projects. Each project
+updates separately; there is no automatic fleet-wide sync.
+
+| How the project was created | Update method |
+| --- | --- |
+| Copier, with valid `.copier-answers.yml` | Copier's three-way update from a published mirror tag |
+| GitHub template or clone, without Copier metadata | Compare its known base revision with a published release and port the relevant changes manually |
+
+For a Copier project, work from its Git root with a clean working tree. Check
+that `_src_path` in `.copier-answers.yml` points to
+`Llamitai/saas-bootstrap-template`, then run:
 
 ```bash
-cd my-app/backend && uv lock
+git status --short
+uvx --from 'copier>=9.6,<10' copier update --defaults --trust
 ```
 
-Later, pull newer template releases from inside your project with
-`uvx copier update --trust`.
+Copier selects the latest published stable tag by default. To choose one
+published release, add `--vcs-ref vX.Y.Z`. Do not edit
+`.copier-answers.yml` yourself. After the update, review `git diff`,
+resolve conflict markers or `*.rej` files, regenerate affected lockfiles
+(`uv lock --directory backend` when backend dependencies changed), and run
+the checks required by the changed contracts. Keep product-specific changes
+and real `.env` files intact.
 
-The mirror is generated on every `v*` tag by
-[`publish-template.yml`](.github/workflows/publish-template.yml) via
-[`scripts/build_template.py`](scripts/build_template.py); branding tokens live
-in [`scripts/branding_tokens.json`](scripts/branding_tokens.json). Never edit
-the mirror by hand.
+For a GitHub-template copy, first identify the exact canonical SHA or release
+used to create it. In a checkout of `Llamitai/wise`, compare that revision
+with the desired published `vX.Y.Z` tag using `git diff`. Port the relevant
+changes into the product, adapt its branding, and verify the affected
+contracts. If the starting revision is unknown, establish it before applying
+a guessed patch; do not create a fake `.copier-answers.yml`.
 
-**Lightweight alternative: GitHub template.**
+The [`sync-template` skill](.claude/skills/sync-template/SKILL.md) guides
+both routes, including source verification, conflict review, and checks. Invoke
+it as `$sync-template` in Codex, `/sync-template` in Claude Code, or ask
+OpenCode to use `sync-template`. It is stored in `.claude/skills/` and copied
+to `.agents/skills/`. Projects created before the release containing this
+skill must first receive it through a Copier update or a manual port.
 
-- On GitHub, enable **Settings → Template repository** so new projects can be
-  created with "Use this template" instead of forking.
-- To rebrand the neutral "[[ project_name ]]" naming, ask your agent to run the
-  [`rename-project`](.claude/skills/rename-project) skill — it renames package
-  metadata, Docker images, docs, UI metadata, and seeds in one pass (no
-  `copier update` afterwards, though).
-- Personalize the copyright line in [`LICENSE`](LICENSE) with your own name or
-  company.
+## Run locally
 
-## Quick Start
+Prerequisites: Docker with Compose, `just`, **Node.js 24** LTS (pinned in
+[`.nvmrc`](.nvmrc)), the pnpm version in the package manifests, and `uv`
+for lockfile and local template operations. Run commands from the Git root.
 
 ```bash
-just                 # list commands
-just backend dev     # backend stack: API + worker + Postgres + Valkey + RabbitMQ + RustFS + Mailpit + Directus
-just frontend dev    # Next.js dev server
-just docs dev        # documentation site (React Router + Fumadocs)
-just backend stop    # stop the backend stack
+cp frontend/.env.example frontend/.env  # first run only
+just backend dev                         # creates backend/.env if absent; API :8200
 ```
 
-Commands are grouped by area:
-
-```bash
-just backend
-just frontend
-just docs
-```
-
-## Database
-
-The backend starts from a single core migration:
-
-[`backend/src/common/database/versions/20260707_000001_initial_[[ python_name ]].py`](backend/src/common/database/versions/20260707_000001_initial_[[ python_name ]].py)
-
-Run migrations with:
+In another terminal, initialize the local data and storage:
 
 ```bash
 just backend migrate
+just backend seed
+just backend minio-setup
+just frontend install
+just frontend dev                        # app :3000
 ```
+
+The `minio-setup` recipe configures the S3 bucket in local RustFS. The seed
+creates a local owner login: `[[ owner_email ]]` / `12345678x`. For the docs
+site, run `just docs install` and `just docs dev` (`:4321`).
+
+Run `just backend`, `just frontend`, or `just docs` to list area recipes.
+`just check` runs static checks without source autofixes; `just verify`
+adds backend non-API tests and frontend tests/build. API, browser, migration,
+and docs checks are selected by impact in the
+[verification guide](docs/content/docs/equipo/verificacion.md).
+`just template check` validates the generated template in this canonical
+repository when Copier tooling is available.
 
 ## Architecture
 
-- Backend uses Clean Architecture with DDD:
-  `domain -> application -> infrastructure -> presentation`.
-- Frontend uses a feature-first structure:
-  `frontend/src/app -> frontend/src/features -> frontend/src/entities -> frontend/src/shared`.
-- Browser code calls the backend only through same-origin Next.js BFF routes
-  under `/api/...`.
-
-See [`docs/content/docs/conceptos/arquitectura-frontend.md`](docs/content/docs/conceptos/arquitectura-frontend.md)
-for the frontend source of truth. The documentation site (`just docs dev`) groups
-everything by need: getting started, guides, concepts, reference (including the
-API reference generated from OpenAPI) and the team contract.
+- Backend uses Clean Architecture and DDD. Its
+  [README](backend/README.md) describes modules, migrations, and operations.
+- Frontend uses feature layers and same-origin `/api` requests. See the
+  [frontend architecture](docs/content/docs/conceptos/arquitectura-frontend.md).
+- Documentation and the API reference live under `docs/`. HTTP contract
+  changes require `just backend openapi`.
 
 ## License
 

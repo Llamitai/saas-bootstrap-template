@@ -20,7 +20,11 @@ class RenameProjectTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "scripts").mkdir()
         shutil.copy(BRANDING, self.root / "scripts" / "branding_tokens.json")
-        self.write("README.md", "# SaaS Bootstrap\nRun saas-bootstrap-api with saas_bootstrap_db.\n")
+        self.write(
+            "README.md",
+            "# SaaS Bootstrap\nRun saas-bootstrap-api with saas_bootstrap_db.\n"
+            "Update from gh:Llamitai/saas-bootstrap-template.\n",
+        )
         self.write("backend/pyproject.toml", 'name = "SaaS Bootstrap"\n')
         self.write("uv.lock", 'name = "saas-bootstrap"\n')
         self.write(".claude/skills/example/SKILL.md", "SaaS Bootstrap skill\n")
@@ -47,7 +51,8 @@ class RenameProjectTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self.read("README.md"),
-            "# Acme Portal\nRun acme-portal-api with acme_portal_db.\n",
+            "# Acme Portal\nRun acme-portal-api with acme_portal_db.\n"
+            "Update from gh:Llamitai/saas-bootstrap-template.\n",
         )
 
     def test_rename__writes_slug_on_package_metadata_lines(self) -> None:

@@ -50,6 +50,9 @@ rg -n "owner@example\.com" \
 
 7. Manually fix context-specific leftovers. Do not blindly replace:
    - `SaaS Bootstrap` if it still describes the template rather than the target product (for example inside this skill's own files).
+   - `Llamitai/saas-bootstrap-template` when it identifies the published
+     upstream Copier mirror. `preserve_literals` in the branding inventory
+     keeps that source URL usable in generated and renamed projects.
    - author emails or GitHub orgs unless the user provided replacements.
    - lockfiles: the script skips them; regenerate them with the package manager (`pnpm -C frontend install`, `pnpm -C docs install`, `uv lock --directory backend`) after renaming instead of editing them by hand.
 8. Validate with the repo's normal checks when practical. For this project, prefer:
